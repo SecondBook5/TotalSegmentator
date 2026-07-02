@@ -15,7 +15,7 @@ import nibabel as nib
 import numpy as np
 
 from totalsegmentator.cnn import (
-    predict_body_stats_with_cnn,
+    predict_all_body_stats_with_cnn,
 )
 from totalsegmentator.python_api import show_license_info, totalsegmentator
 from totalsegmentator.config import (
@@ -67,7 +67,7 @@ def load_xgboost_model(clf, model_path):
     clf.load_model(bytearray(Path(model_path).read_bytes()))
 
 
-def load_models(classifier_path, target, fold=None):
+def load_models(classifier_path, target, fold=0):
     try:
         import xgboost as xgb
     except ImportError as exc:
@@ -76,11 +76,14 @@ def load_models(classifier_path, target, fold=None):
         ) from exc
 
     clfs = {}
-    # Determine which folds to load
-    fold_indices = [fold] if fold is not None else range(5)
+    if fold is None:
+        fold = 0
+    fold_indices = range(5) if fold == "all" else [int(fold)]
     
     # Load the specified fold(s)
     for fold_idx in fold_indices:
+        if fold_idx not in range(5):
+            raise ValueError(f"Fold must be in [0, 4] or 'all', got {fold}.")
         if target == "sex":
             clf = xgb.XGBClassifier(device="cpu")
         else:
@@ -272,7 +275,7 @@ def get_tissue_types_slices(ct_img, vertebrae_img, tissue_types_img, body_img, v
 def get_body_stats(img, modality: str, f_type: str = "niigz", model_file: Path = None,
                    quiet: bool = False, device: str = "cpu", 
                    existing_stats: dict = None, existing_seg_img: nib.Nifti1Image = None,
-                   fold: int = None, license_number: str = None, use_border: bool = False,
+                   fold: int | str = 0, license_number: str = None, use_border: bool = False,
                    call_via_subprocess: bool = False, model_type: str = "cnn",
                    only_weight: bool = False, debug: bool = False):
     """
@@ -290,12 +293,12 @@ def get_body_stats(img, modality: str, f_type: str = "niigz", model_file: Path =
         device: str, optional
         existing_stats: dict, optional
         existing_seg_img: nib.Nifti1Image, optional
-        fold: int, optional - if set, only this fold is used; if None, ensemble of all folds is used
+        fold: int | "all", optional - default 0. Use "all" to ensemble all 5 folds.
         license_number: str, optional
         use_border: bool, optional
         call_via_subprocess: bool, optional - if True, run TotalSegmentator via subprocess
         model_type: str, optional - "xgboost" for the existing feature-based model,
-            "cnn" to use the 5-fold CNN ensemble
+            "cnn" to use the CNN model
         only_weight: bool, optional - if True, predict only body weight and skip all
             other targets and derived measures
         debug: bool, optional - if True, print additional debugging information
@@ -348,24 +351,17 @@ def get_body_stats(img, modality: str, f_type: str = "niigz", model_file: Path =
     img = nib.as_closest_canonical(img)  # important to cut tissue slices along correct axis
 
     if model_type == "cnn":
-        result = {}
-        targets = ["weight"] if only_weight else ["weight", "size", "age", "sex"]
-        target_progress = {
-            "weight": 35,
-            "size": 55,
-            "age": 75,
-            "sex": 90,
+        yield {
+            "id": 2,
+            "progress": 75,
+            "status": "Predicting body stats with CNN",
         }
-        for target in targets:
-            yield {
-                "id": 2,
-                "progress": target_progress[target],
-                "status": f"Predicting {target} with CNN ensemble",
-            }
-            result[target] = predict_body_stats_with_cnn(
-                img, target=target, modality=modality, model_dir=model_file, fold=fold,
-                device=device, debug=debug
-            )
+        result = predict_all_body_stats_with_cnn(
+            img, modality=modality, model_dir=model_file, fold=fold,
+            device=device, debug=debug
+        )
+        if only_weight:
+            result = {"weight": result["weight"]}
 
         if not only_weight:
             weight_kg = result["weight"]["value"]
@@ -508,13 +504,13 @@ def get_body_stats(img, modality: str, f_type: str = "niigz", model_file: Path =
             pred = "M" if pred_binary == 1 else "F"
             # Invert probability for female to show confidence in the predicted class
             reported_prob = mean_prob if pred == "M" else 1.0 - mean_prob
-            pred_std = round(float(np.std(probs)), 4)
             
             result[target] = {"value": pred,
-                              "probability": round(reported_prob, 4),
-                              "stddev": pred_std,
                               "unit": None
                               }
+            if len(probs) > 1:
+                result[target]["probability"] = round(reported_prob, 4)
+                result[target]["stddev"] = round(float(np.std(probs)), 4)
         else:
             # For regression: use predict and ensemble predictions
             preds = []
@@ -522,14 +518,14 @@ def get_body_stats(img, modality: str, f_type: str = "niigz", model_file: Path =
                 preds.append(clf.predict([features])[0])  # very fast
             preds = np.array(preds)
             pred = round(float(np.mean(preds)), 2)
-            pred_std = round(float(np.std(preds)), 4)
 
             result[target] = {"value": pred, 
-                              "min": round(float(preds.min()), 2), 
-                              "max": round(float(preds.max()), 2),
-                              "stddev": pred_std,  # measure of uncertainty
                               "unit": "kg" if target == "weight" else "cm" if target == "size" else "years" if target == "age" else None
                               }
+            if len(preds) > 1:
+                result[target]["min"] = round(float(preds.min()), 2)
+                result[target]["max"] = round(float(preds.max()), 2)
+                result[target]["stddev"] = round(float(np.std(preds)), 4)  # measure of uncertainty
     
     if not only_weight:
         # Calculate BMI and Body Surface Area based on predicted values
@@ -593,8 +589,8 @@ def main():
     parser.add_argument("-d",'--device', type=str, default="cpu",
                         help="Device type: 'gpu', 'cpu', 'mps', or 'gpu:X' where X is an integer representing the GPU device ID.")
     
-    parser.add_argument("-f", "--fold", type=int, default=None,
-                        help="Fold number (0-4) to use for prediction. If not set, ensemble of all folds is used.")
+    parser.add_argument("-f", "--fold", type=str, default="0",
+                        help="Fold number (0-4) to use for prediction, or 'all' to ensemble all 5 folds. Default: 0.")
     
     parser.add_argument("-q", dest="quiet", action="store_true",
                         help="Print no output to stdout", default=False)

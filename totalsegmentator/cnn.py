@@ -12,90 +12,25 @@ from totalsegmentator.resampling import change_spacing
 
 DEFAULT_BODY_STATS_CNN_ROOT_DIR = get_weights_dir() / "lightning_models"
 DEFAULT_BODY_STATS_CNN_DIRS = {
-    "mr": {
-
-        # older
-        # "weight": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "mr_weight_splitXGB_2d_ns5_effnetv2",
-        # "weight": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "mr_weight_splitOrig_2d_ns5_effnetv2",
-        # old
-        # "weight": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "mr_weight_splitXGB_2d_ns5_mo1_effnetv2",
-        # "size": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "mr_size_splitXGB_2d_ns5_mo1_effnetv2",
-        # "age": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "mr_age_splitXGB_2d_ns5_mo1_effnetv2",
-        # "sex": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "mr_sex_splitXGB_2d_ns5_mo1_effnetv2",
-        # current
-        # "weight": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "mr_weight_splitOrig_2d_ns5_effnetv2",
-        # "size": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "mr_size_splitOrig_2d_ns5_effnetv2",
-        # "age": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "mr_age_splitOrig_2d_ns5_effnetv2",
-        # "sex": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "mr_sex_splitOrig_2d_ns5_effnetv2",
-        # with flipping daug
-        # "weight": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "mr_weight_splitOrig_2d_ns5_effnetv2_fl1",
-        # "size": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "mr_size_splitOrig_2d_ns5_effnetv2_fl1",
-        # "age": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "mr_age_splitOrig_2d_ns5_effnetv2_fl1",
-        # "sex": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "mr_sex_splitOrig_2d_ns5_effnetv2_fl1",
-        # with flipping daug + even sampling
-        "weight": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "mr_weight_splitOrig_2d_ns5_effnetv2_fl1_se1",
-        "size": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "mr_size_splitOrig_2d_ns5_effnetv2_fl1_se1",
-        "age": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "mr_age_splitOrig_2d_ns5_effnetv2_fl1_se1",
-        "sex": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "mr_sex_splitOrig_2d_ns5_effnetv2_fl1_se1",
-    },
-    "ct": {
-        # older
-        # can not use older mo1 models, because they are based on sparse z-sampling which is not done during inference
-        # "weight": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_weight_splitXGB_2d_ns5_effnetv2_ep40",
-        # "weight": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "old_2/ct_weight_splitOrig_2d_ns5_effnetv2",
-        # old
-        # "weight": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_weight_splitXGB_2d_ns5_mo1_effnetv2_npy0",
-        # "size": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_size_splitXGB_2d_ns5_mo1_effnetv2_npy0",
-        # "age": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_age_splitXGB_2d_ns5_mo1_effnetv2_npy0",
-        # "sex": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_sex_splitXGB_2d_ns5_mo1_effnetv2_npy0",
-        # current
-        # "weight": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_weight_splitOrig_2d_ns5_effnetv2",
-        # "size": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_size_splitOrig_2d_ns5_effnetv2",
-        # "age": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_age_splitOrig_2d_ns5_effnetv2",
-        # "sex": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_sex_splitOrig_2d_ns5_effnetv2",
-        # with flipping daug
-        # "weight": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_weight_splitOrig_2d_ns5_effnetv2_fl1",
-        # "size": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_size_splitOrig_2d_ns5_effnetv2_fl1",
-        # "age": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_age_splitOrig_2d_ns5_effnetv2_fl1",
-        # "sex": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_sex_splitOrig_2d_ns5_effnetv2_fl1",
-        # with flipping daug + even sampling
-        "weight": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_weight_splitOrig_2d_ns5_effnetv2_fl1_se1",
-        "size": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_size_splitOrig_2d_ns5_effnetv2_fl1_se1",
-        "age": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_age_splitOrig_2d_ns5_effnetv2_fl1_se1",
-        "sex": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_sex_splitOrig_2d_ns5_effnetv2_fl1_se1",
-        # with flipping daug + 20 slices
-        # -> do not use: better for some targets, worse for others
-        # "weight": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_weight_splitOrig_2d_ns20_effnetv2_fl1",
-        # "size": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_size_splitOrig_2d_ns20_effnetv2_fl1",
-        # "age": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_age_splitOrig_2d_ns20_effnetv2_fl1",
-        # "sex": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_sex_splitOrig_2d_ns20_effnetv2_fl1",
-    },
+    "mr": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "mr_all_splitOrig_3d_resnet10_ep40_rtn1",
+    "ct": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_all_splitOrig_3d_resnet10_ep40_rtn1",
 }
 BODY_STATS_CNN_DOWNLOAD_TASKS = {
-    "mr": {
-        "weight": "body_stats_cnn_mr_weight",
-        "size": "body_stats_cnn_mr_size",
-        "age": "body_stats_cnn_mr_age",
-        "sex": "body_stats_cnn_mr_sex",
-    },
-    "ct": {
-        "weight": "body_stats_cnn_ct_weight",
-        "size": "body_stats_cnn_ct_size",
-        "age": "body_stats_cnn_ct_age",
-        "sex": "body_stats_cnn_ct_sex",
-    },
+    "mr": "body_stats_cnn_mr",
+    "ct": "body_stats_cnn_ct",
 }
 
-CNN_CROP_SIZE = {
-    "ct": (240, 240),
-    "mr": (210, 210),
+CNN_FALLBACK_CROP_SIZE = {
+    "ct": {2: (240, 240), 3: (240, 240, 240)},
+    "mr": {2: (210, 210), 3: (210, 210, 150)},
 }
 CNN_TARGET_SPACING_MM = 2.0
+CNN_MODEL_TARGET_ORDER = ["PatientWeight", "PatientSize", "PatientAge", "PatientSex_01"]
 CNN_TARGET_SPECS = {
-    "weight": {"loss": "mse", "num_classes": 1, "unit": "kg"},
-    "size": {"loss": "mse", "num_classes": 1, "unit": "cm"},
-    "age": {"loss": "mse", "num_classes": 1, "unit": "years"},
-    "sex": {"loss": "ce", "num_classes": 2, "unit": None},
+    "weight": {"training_name": "PatientWeight", "unit": "kg"},
+    "size": {"training_name": "PatientSize", "unit": "cm"},
+    "age": {"training_name": "PatientAge", "unit": "years"},
+    "sex": {"training_name": "PatientSex_01", "unit": None},
 }
 
 
@@ -247,40 +182,58 @@ def _apply_training_unpack_slice_stride(
     raise ValueError(f"Unsupported slice orientation: {orientation}")
 
 
-def _center_pad_or_crop_2d(img_2d: np.ndarray, target_shape: tuple[int, int]) -> np.ndarray:
-    target_h, target_w = target_shape
-    src_h, src_w = img_2d.shape
+def _center_pad_or_crop_nd(img_data: np.ndarray, target_shape: tuple[int, ...]) -> np.ndarray:
+    target_shape = tuple(int(size) for size in target_shape)
+    if img_data.ndim != len(target_shape):
+        raise ValueError(
+            f"Can not crop/pad array with shape {img_data.shape} to {target_shape}."
+        )
 
-    src_h_start = max((src_h - target_h) // 2, 0)
-    src_w_start = max((src_w - target_w) // 2, 0)
-    src_h_end = src_h_start + min(src_h, target_h)
-    src_w_end = src_w_start + min(src_w, target_w)
+    src_slices = []
+    dst_slices = []
+    for src_size, target_size in zip(img_data.shape, target_shape):
+        src_start = max((src_size - target_size) // 2, 0)
+        src_end = src_start + min(src_size, target_size)
+        dst_start = max((target_size - (src_end - src_start)) // 2, 0)
+        dst_end = dst_start + (src_end - src_start)
+        src_slices.append(slice(src_start, src_end))
+        dst_slices.append(slice(dst_start, dst_end))
 
-    cropped = img_2d[src_h_start:src_h_end, src_w_start:src_w_end]
-    out = np.zeros((target_h, target_w), dtype=img_2d.dtype)
-
-    dst_h_start = max((target_h - cropped.shape[0]) // 2, 0)
-    dst_w_start = max((target_w - cropped.shape[1]) // 2, 0)
-    dst_h_end = dst_h_start + cropped.shape[0]
-    dst_w_end = dst_w_start + cropped.shape[1]
-    out[dst_h_start:dst_h_end, dst_w_start:dst_w_end] = cropped
+    out = np.zeros(target_shape, dtype=img_data.dtype)
+    out[tuple(dst_slices)] = img_data[tuple(src_slices)]
     return out
 
 
-def _normalize_per_channel(img_stack: np.ndarray) -> np.ndarray:
+def _normalize_per_channel(img_stack: np.ndarray, nonzero: bool = False) -> np.ndarray:
     img_stack = img_stack.astype(np.float32, copy=False)
     normalized = np.empty_like(img_stack, dtype=np.float32)
 
     for channel_idx in range(img_stack.shape[0]):
         channel = img_stack[channel_idx]
-        mean = float(channel.mean())
-        std = float(channel.std())
+        mask = channel != 0 if nonzero else np.ones(channel.shape, dtype=bool)
+        if not np.any(mask):
+            normalized[channel_idx] = channel
+            continue
+
+        mean = float(channel[mask].mean())
+        std = float(channel[mask].std())
+        channel_normalized = channel.copy()
         if std < 1e-8:
-            normalized[channel_idx] = channel - mean
+            channel_normalized[mask] = channel[mask] - mean
         else:
-            normalized[channel_idx] = (channel - mean) / std
+            channel_normalized[mask] = (channel[mask] - mean) / std
+        normalized[channel_idx] = channel_normalized
 
     return normalized
+
+
+def _scale_intensity_to_minus_one_one(img_stack: np.ndarray) -> np.ndarray:
+    img_stack = img_stack.astype(np.float32, copy=False)
+    min_value = float(img_stack.min())
+    max_value = float(img_stack.max())
+    if max_value - min_value < 1e-8:
+        return np.zeros_like(img_stack, dtype=np.float32)
+    return ((img_stack - min_value) / (max_value - min_value) * 2.0 - 1.0).astype(np.float32)
 
 
 def _normalize_with_training_hparams(img_stack: np.ndarray, hparams: dict | None) -> np.ndarray:
@@ -289,12 +242,19 @@ def _normalize_with_training_hparams(img_stack: np.ndarray, hparams: dict | None
         return img_stack
 
     if hparams.get("norm_global", False):
-        global_mean = np.asarray(hparams["global_mean"], dtype=np.float32)
-        global_std = np.asarray(hparams["global_std"], dtype=np.float32)
-        return (img_stack - global_mean[:, None, None]) / global_std[:, None, None]
+        global_mean = _as_channel_stats(
+            hparams["global_mean"], img_stack.shape[0], img_stack.ndim, "global_mean"
+        )
+        global_std = _as_channel_stats(
+            hparams["global_std"], img_stack.shape[0], img_stack.ndim, "global_std"
+        )
+        global_std = np.where(np.abs(global_std) < 1e-8, 1.0, global_std)
+        return (img_stack - global_mean) / global_std
 
     if hparams.get("norm_channel_wise", True):
-        return _normalize_per_channel(img_stack)
+        return _normalize_per_channel(
+            img_stack, nonzero=bool(hparams.get("norm_ignore_zero", False))
+        )
 
     mean = float(img_stack.mean())
     std = float(img_stack.std())
@@ -303,31 +263,80 @@ def _normalize_with_training_hparams(img_stack: np.ndarray, hparams: dict | None
     return (img_stack - mean) / std
 
 
+def _as_channel_stats(
+    values, nr_channels: int, img_stack_ndim: int, name: str
+) -> np.ndarray:
+    values = np.asarray(values, dtype=np.float32).reshape(-1)
+    if values.size == 1 and nr_channels != 1:
+        values = np.repeat(values, nr_channels)
+    if values.size != nr_channels:
+        raise ValueError(
+            f"Expected {nr_channels} values for {name}, got {values.size}: {values.tolist()}"
+        )
+    return values.reshape((nr_channels,) + (1,) * (img_stack_ndim - 1))
+
+
+def _apply_validation_intensity_transforms(
+    img_stack: np.ndarray, hparams: dict | None
+) -> np.ndarray:
+    if hparams and hparams.get("clip", False):
+        img_stack = np.clip(img_stack, hparams["clip_low"], hparams["clip_high"])
+    if hparams and hparams.get("daug_scale_itensity", False):
+        img_stack = _scale_intensity_to_minus_one_one(img_stack)
+    return _normalize_with_training_hparams(img_stack, hparams)
+
+
+def _get_crop_size(hparams: dict | None, modality: str) -> tuple[int, ...]:
+    dim = int(hparams.get("dim", 2)) if hparams else 2
+    if hparams and hparams.get("crop_size") is not None:
+        crop_size = tuple(int(size) for size in hparams["crop_size"])
+    else:
+        crop_size = CNN_FALLBACK_CROP_SIZE[modality][dim]
+
+    if len(crop_size) != dim:
+        raise ValueError(f"Expected {dim}D crop_size, got {crop_size}.")
+    return crop_size
+
+
 def _prepare_image_tensor(
-    img: nib.Nifti1Image, crop_size: tuple[int, int], hparams: dict | None = None
+    img: nib.Nifti1Image, modality: str, hparams: dict | None = None
 ):
     img = nib.as_closest_canonical(img)
     img = change_spacing(img, CNN_TARGET_SPACING_MM, dtype=np.float32, order=1)
     img_data = np.asarray(img.dataobj, dtype=np.float32)
+    dim = int(hparams.get("dim", 2)) if hparams else 2
+    crop_size = _get_crop_size(hparams, modality)
 
-    if hparams and hparams.get("clip", False):
-        img_data = np.clip(img_data, hparams["clip_low"], hparams["clip_high"])
+    if dim == 3:
+        img_stack = img_data[None, ...]
+        img_stack = _apply_validation_intensity_transforms(img_stack, hparams)
+        img_stack = np.stack(
+            [_center_pad_or_crop_nd(channel, crop_size) for channel in img_stack],
+            axis=0,
+        )
+    elif dim == 2:
+        img_data = _apply_training_unpack_slice_stride(img_data, hparams)
+        slices = _extract_slices(img_data, hparams)
+        img_stack = np.stack(
+            [_center_pad_or_crop_nd(slice_2d, crop_size) for slice_2d in slices],
+            axis=0,
+        )
+        img_stack = _apply_validation_intensity_transforms(img_stack, hparams)
+        img_stack = np.stack(
+            [_center_pad_or_crop_nd(slice_2d, crop_size) for slice_2d in img_stack],
+            axis=0,
+        )
+    else:
+        raise ValueError(f"Unsupported CNN input dimensionality: {dim}")
 
-    img_data = _apply_training_unpack_slice_stride(img_data, hparams)
-    crop_size = tuple(hparams.get("crop_size", crop_size)) if hparams else crop_size
-    slices = _extract_slices(img_data, hparams)
-    slices = _normalize_with_training_hparams(np.stack(slices, axis=0), hparams)
-    slices = np.stack(
-        [_center_pad_or_crop_2d(slice_2d, crop_size) for slice_2d in slices],
-        axis=0,
-    )
+    img_stack = img_stack.astype(np.float32, copy=False)
 
     try:
         import torch
     except ImportError as exc:
         raise ImportError("CNN body-stats inference requires PyTorch to be installed.") from exc
 
-    return torch.from_numpy(slices[None, ...])
+    return torch.from_numpy(img_stack[None, ...])
 
 
 def _resolve_device(device):
@@ -426,91 +435,217 @@ def _load_torch_checkpoint(ckpt_file: Path, weights_only: bool):
             return _load()
 
 
-def _load_fold_model(model_dir: Path, fold_idx: int, device, target: str):
+class _MultiHeadOutput:
+    def __new__(cls, in_features: int, nr_heads: int, dropout: float):
+        import torch
+
+        class MultiHeadOutput(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                hidden_features = min(128, in_features)
+                self.heads = torch.nn.ModuleList([
+                    torch.nn.Sequential(
+                        torch.nn.Linear(in_features, hidden_features),
+                        torch.nn.ReLU(inplace=True),
+                        torch.nn.Dropout(dropout),
+                        torch.nn.Linear(hidden_features, 1),
+                    )
+                    for _ in range(nr_heads)
+                ])
+
+            def forward(self, x):
+                return torch.cat([head(x) for head in self.heads], dim=1)
+
+        return MultiHeadOutput()
+
+
+def _load_hparams_yaml(model_dir: Path, fold_idx: int) -> dict:
+    hparams_file = model_dir / f"version_{fold_idx}" / "hparams.yaml"
+    if not hparams_file.exists():
+        return {}
+
+    try:
+        import yaml
+    except ImportError:
+        return {}
+
+    with open(hparams_file) as f:
+        try:
+            hparams = yaml.safe_load(f) or {}
+        except yaml.constructor.ConstructorError:
+            # Lightning hparams.yaml can contain trusted local Python/NumPy tags
+            # such as numpy scalar values. SafeLoader intentionally rejects them.
+            f.seek(0)
+            hparams = yaml.load(f, Loader=yaml.UnsafeLoader) or {}
+    return dict(hparams)
+
+
+def _load_fold_checkpoint_and_hparams(model_dir: Path, fold_idx: int) -> tuple[dict, dict]:
+    ckpt_file = _find_fold_checkpoint(model_dir, fold_idx)
+    checkpoint = _load_torch_checkpoint(ckpt_file, weights_only=True)
+    if "state_dict" not in checkpoint:
+        raise KeyError(f"Checkpoint {ckpt_file} does not contain a 'state_dict' entry.")
+
+    hparams = dict(checkpoint.get("hyper_parameters", {}))
+    if not hparams:
+        hparams = _load_hparams_yaml(model_dir, fold_idx)
+    return checkpoint, hparams
+
+
+def _get_nr_channels(hparams: dict) -> int:
+    nr_channels = hparams.get("nr_channels")
+    if nr_channels is not None:
+        return int(nr_channels)
+
+    dim = int(hparams.get("dim", 2))
+    img_files = hparams.get("img_files", ["ct.nii.gz"])
+    nr_img_files = len(img_files) if isinstance(img_files, list) else 1
+    if dim == 3:
+        return nr_img_files
+
+    nr_slices = int(_require_hparam(hparams, "nr_slices"))
+    multi_orientation = bool(_require_hparam(hparams, "multi_orientation"))
+    return nr_img_files * nr_slices * (3 if multi_orientation else 1)
+
+
+def _get_nr_classes(hparams: dict) -> int:
+    nr_classes = int(hparams.get("nr_classes", len(CNN_MODEL_TARGET_ORDER)))
+    if hparams.get("loss") == "bce":
+        nr_classes -= 1
+    return nr_classes
+
+
+def _create_resnet3d_model(hparams: dict):
+    try:
+        from monai.networks.nets import resnet10, resnet18, resnet50
+    except ImportError as exc:
+        raise ImportError("CNN body-stats inference requires monai to be installed.") from exc
+
+    import torch
+
+    model_name = hparams.get("model")
+    resnet3d_map = {
+        "resnet3d_10": (resnet10, 512, "B", False, 1.0, False),
+        "resnet3d_10_w05": (resnet10, 256, "B", False, 0.5, False),
+        "resnet3d_10_multihead": (resnet10, 512, "B", False, 1.0, True),
+        "resnet3d_18": (resnet18, 512, "A", True, 1.0, False),
+        "resnet3d_50": (resnet50, 2048, "B", False, 1.0, False),
+    }
+    if model_name not in resnet3d_map:
+        raise ValueError(f"Unsupported 3D ResNet model: {model_name}")
+
+    resnet_fn, feat_dim, shortcut_type, bias_downsample, widen_factor, multihead = resnet3d_map[model_name]
+    model = resnet_fn(
+        pretrained=False,
+        spatial_dims=int(hparams.get("dim", 3)),
+        n_input_channels=_get_nr_channels(hparams),
+        feed_forward=False,
+        shortcut_type=shortcut_type,
+        bias_downsample=bias_downsample,
+        conv1_t_stride=int(hparams.get("resnet3d_stride", 2)),
+        widen_factor=widen_factor,
+    )
+
+    nr_classes = _get_nr_classes(hparams)
+    dropout = float(hparams.get("dropout", 0.0))
+    if multihead:
+        model.fc = _MultiHeadOutput(feat_dim, nr_classes, dropout)
+    else:
+        model.fc = torch.nn.Sequential(
+            torch.nn.Dropout(dropout),
+            torch.nn.Linear(feat_dim, nr_classes),
+        )
+    return model
+
+
+def _create_model_from_hparams(hparams: dict):
+    model_name = hparams.get("model", "tf_efficientnet_b0_ns")
+    if model_name.startswith("resnet3d"):
+        return _create_resnet3d_model(hparams)
+
     try:
         import timm
     except ImportError as exc:
         raise ImportError("CNN body-stats inference requires timm to be installed.") from exc
 
-    ckpt_file = _find_fold_checkpoint(model_dir, fold_idx)
-
-    checkpoint = _load_torch_checkpoint(ckpt_file, weights_only=True)
-    if "state_dict" not in checkpoint:
-        raise KeyError(f"Checkpoint {ckpt_file} does not contain a 'state_dict' entry.")
-
-    model_name = checkpoint.get("hyper_parameters", {}).get("model", "tf_efficientnet_b0_ns")
     if model_name == "tf_efficientnet_b0_ns":
         model_name = "tf_efficientnet_b0.ns_jft_in1k"
-
-    hparams = checkpoint.get("hyper_parameters", {})
-    nr_channels = hparams.get("nr_channels")
-    if nr_channels is None:
-        nr_slices = int(_require_hparam(hparams, "nr_slices"))
-        multi_orientation = bool(_require_hparam(hparams, "multi_orientation"))
-        nr_channels = nr_slices * (3 if multi_orientation else 1)
-
-    model = timm.create_model(
+    return timm.create_model(
         model_name,
         pretrained=False,
-        num_classes=CNN_TARGET_SPECS[target]["num_classes"],
-        in_chans=int(nr_channels),
+        num_classes=_get_nr_classes(hparams),
+        in_chans=_get_nr_channels(hparams),
     )
-    state_dict = {
-        key.removeprefix("backbone."): value
-        for key, value in checkpoint["state_dict"].items()
-        if key.startswith("backbone.")
-    }
-    model.load_state_dict(state_dict, strict=True)
+
+
+def _extract_backbone_state_dict(state_dict: dict) -> dict:
+    if any(key.startswith("backbone.") for key in state_dict):
+        return {
+            key.removeprefix("backbone."): value
+            for key, value in state_dict.items()
+            if key.startswith("backbone.")
+        }
+    return state_dict
+
+
+def _load_fold_model(model_dir: Path, fold_idx: int, device):
+    checkpoint, hparams = _load_fold_checkpoint_and_hparams(model_dir, fold_idx)
+    model = _create_model_from_hparams(hparams)
+    model.load_state_dict(_extract_backbone_state_dict(checkpoint["state_dict"]), strict=True)
     model.to(device)
     model.eval()
-    return model
+    return model, hparams
 
 
 def _load_fold_hparams(model_dir: Path, fold_idx: int) -> dict:
-    ckpt_file = _find_fold_checkpoint(model_dir, fold_idx)
-    checkpoint = _load_torch_checkpoint(ckpt_file, weights_only=True)
-    return dict(checkpoint.get("hyper_parameters", {}))
+    _, hparams = _load_fold_checkpoint_and_hparams(model_dir, fold_idx)
+    return hparams
 
 
-def _get_fold_indices(fold: int | None) -> list[int]:
-    if fold is None:
+def _get_fold_indices(fold: int | str | None = 0) -> list[int]:
+    if fold == "all":
         return list(range(5))
+    if fold is None:
+        fold = 0
+    fold = int(fold)
     if fold not in range(5):
-        raise ValueError(f"Fold must be in [0, 4], got {fold}.")
+        raise ValueError(f"Fold must be in [0, 4] or 'all', got {fold}.")
     return [fold]
 
 
-def _validate_modality_and_target(modality: str, target: str) -> None:
+def _validate_modality(modality: str) -> None:
     if modality not in DEFAULT_BODY_STATS_CNN_DIRS:
         supported_modalities = ", ".join(sorted(DEFAULT_BODY_STATS_CNN_DIRS))
         raise ValueError(f"Unsupported CNN modality: {modality}. Supported: {supported_modalities}")
+
+
+def _validate_target(target: str) -> None:
     if target not in CNN_TARGET_SPECS:
         raise ValueError(f"Unsupported CNN target: {target}")
-    if target not in DEFAULT_BODY_STATS_CNN_DIRS[modality]:
-        supported_targets = ", ".join(sorted(DEFAULT_BODY_STATS_CNN_DIRS[modality]))
-        raise ValueError(
-            f"Unsupported CNN target for {modality.upper()}: {target}. "
-            f"Supported: {supported_targets}"
-        )
 
 
-def _resolve_target_model_dir(
-    target: str, modality: str = "mr", model_dir: Path | str | None = None
+def _validate_modality_and_target(modality: str, target: str) -> None:
+    _validate_modality(modality)
+    _validate_target(target)
+
+
+def _resolve_body_stats_model_dir(
+    modality: str = "mr", model_dir: Path | str | None = None
 ) -> Path:
-    _validate_modality_and_target(modality, target)
+    _validate_modality(modality)
 
     if model_dir is None:
-        resolved_dir = DEFAULT_BODY_STATS_CNN_DIRS[modality][target]
+        resolved_dir = DEFAULT_BODY_STATS_CNN_DIRS[modality]
         if not resolved_dir.exists():
-            download_pretrained_weights(BODY_STATS_CNN_DOWNLOAD_TASKS[modality][target])
+            download_pretrained_weights(BODY_STATS_CNN_DOWNLOAD_TASKS[modality])
     else:
         candidate = Path(model_dir).expanduser()
         if (candidate / "version_0").exists():
             resolved_dir = candidate
         else:
-            target_candidate = candidate / DEFAULT_BODY_STATS_CNN_DIRS[modality][target].name
-            if target_candidate.exists():
-                resolved_dir = target_candidate
+            modality_candidate = candidate / DEFAULT_BODY_STATS_CNN_DIRS[modality].name
+            if modality_candidate.exists():
+                resolved_dir = modality_candidate
             else:
                 resolved_dir = candidate
 
@@ -519,29 +654,106 @@ def _resolve_target_model_dir(
     return resolved_dir
 
 
-def predict_body_stats_with_cnn(
+def _get_model_target_names(hparams: dict, output_count: int) -> list[str]:
+    target_names = hparams.get("reg_target_names") or []
+    if target_names:
+        return list(target_names)
+    if output_count == len(CNN_MODEL_TARGET_ORDER):
+        return CNN_MODEL_TARGET_ORDER
+    return []
+
+
+def _get_target_output_index(hparams: dict, target: str, output_count: int) -> int:
+    target_names = _get_model_target_names(hparams, output_count)
+    training_name = CNN_TARGET_SPECS[target]["training_name"]
+    if training_name in target_names:
+        return target_names.index(training_name)
+    if target in target_names:
+        return target_names.index(target)
+    if output_count == 1:
+        return 0
+    raise ValueError(
+        f"Can not find output target '{training_name}' in model target names: {target_names}"
+    )
+
+
+def _apply_regression_target_denormalization(pred: np.ndarray, hparams: dict) -> np.ndarray:
+    if not hparams.get("loss", "mse").startswith("mse"):
+        return pred
+    if not bool(hparams.get("reg_target_normalize", False)):
+        return pred
+
+    means = np.asarray(hparams.get("reg_target_mean", []), dtype=np.float32)
+    stds = np.asarray(hparams.get("reg_target_std", []), dtype=np.float32)
+    if means.size == 0 or stds.size == 0:
+        return pred
+    if means.size == 1 and pred.size != 1:
+        means = np.repeat(means, pred.size)
+    if stds.size == 1 and pred.size != 1:
+        stds = np.repeat(stds, pred.size)
+    if means.size != pred.size or stds.size != pred.size:
+        raise ValueError(
+            f"Regression normalization has shape mean={means.shape}, std={stds.shape}, "
+            f"but prediction has shape {pred.shape}."
+        )
+    return pred * stds.reshape(pred.shape) + means.reshape(pred.shape)
+
+
+def _format_regression_result(preds: np.ndarray, target: str) -> dict:
+    target_spec = CNN_TARGET_SPECS[target]
+    preds = preds.reshape(-1).astype(np.float32)
+
+    if target == "sex":
+        mean_score = float(np.mean(preds))
+        pred_binary = int(mean_score >= 0.5)
+        pred = "M" if pred_binary == 1 else "F"
+        class_probs = np.clip(preds if pred_binary == 1 else 1.0 - preds, 0.0, 1.0)
+        result = {
+            "value": pred,
+            "unit": None,
+        }
+        if len(class_probs) > 1:
+            result["probability"] = round(float(np.mean(class_probs)), 4)
+            result["stddev"] = round(float(np.std(class_probs)), 4)
+        return result
+
+    result = {
+        "value": round(float(np.mean(preds)), 2),
+        "unit": target_spec["unit"],
+    }
+    if len(preds) > 1:
+        result["min"] = round(float(np.min(preds)), 2)
+        result["max"] = round(float(np.max(preds)), 2)
+        result["stddev"] = round(float(np.std(preds)), 4)
+    return result
+
+
+def _format_all_body_stats(preds: np.ndarray, hparams: dict) -> dict:
+    output_count = preds.shape[1] if preds.ndim > 1 else 1
+    result = {}
+    for target in CNN_TARGET_SPECS:
+        target_idx = _get_target_output_index(hparams, target, output_count)
+        result[target] = _format_regression_result(preds[:, target_idx], target)
+    return result
+
+
+def predict_all_body_stats_with_cnn(
     img: nib.Nifti1Image,
-    target: str,
     modality: str = "mr",
     model_dir: Path | str | None = None,
-    fold: int | None = None,
+    fold: int | str | None = 0,
     device="gpu",
     debug: bool = False,
 ) -> dict:
-    _validate_modality_and_target(modality, target)
+    _validate_modality(modality)
 
-    model_dir = _resolve_target_model_dir(target, modality=modality, model_dir=model_dir)
-    if not model_dir.exists():
-        raise FileNotFoundError(f"CNN model directory does not exist: {model_dir}")
-
+    model_dir = _resolve_body_stats_model_dir(modality=modality, model_dir=model_dir)
     resolved_device = _resolve_device(device)
     fold_indices = _get_fold_indices(fold)
     hparams = _load_fold_hparams(model_dir, fold_indices[0])
-    img_tensor = _prepare_image_tensor(
-        img, crop_size=CNN_CROP_SIZE[modality], hparams=hparams
-    ).to(resolved_device)
+    img_tensor = _prepare_image_tensor(img, modality=modality, hparams=hparams).to(resolved_device)
     if debug:
-        print(f"DEBUG: CNN input tensor shape for {target}: {tuple(img_tensor.shape)}")
+        print(f"DEBUG: CNN input tensor shape: {tuple(img_tensor.shape)}")
 
     try:
         import torch
@@ -551,46 +763,35 @@ def predict_body_stats_with_cnn(
     preds = []
     with torch.inference_mode():
         for fold_idx in fold_indices:
-            model = _load_fold_model(model_dir, fold_idx, resolved_device, target)
+            model, fold_hparams = _load_fold_model(model_dir, fold_idx, resolved_device)
             pred = model(img_tensor).detach().float().cpu().numpy()[0]
-            preds.append(pred)
+            pred = np.atleast_1d(pred).astype(np.float32)
+            preds.append(_apply_regression_target_denormalization(pred, fold_hparams))
 
-    preds = np.array(preds)
-    target_spec = CNN_TARGET_SPECS[target]
+    preds = np.stack(preds, axis=0)
+    return _format_all_body_stats(preds, hparams)
 
-    if target_spec["loss"] == "mse":
-        preds = preds.reshape(-1)
-        return {
-            "value": round(float(np.mean(preds)), 2),
-            "min": round(float(np.min(preds)), 2),
-            "max": round(float(np.max(preds)), 2),
-            "stddev": round(float(np.std(preds)), 4),
-            "unit": target_spec["unit"],
-        }
 
-    if target_spec["loss"] == "ce":
-        probs = preds - preds.max(axis=1, keepdims=True)
-        probs = np.exp(probs) / np.exp(probs).sum(axis=1, keepdims=True)
-        mean_probs = probs.mean(axis=0)
-        pred_binary = int(np.argmax(mean_probs))
-        pred = "M" if pred_binary == 1 else "F"
-        reported_prob = float(mean_probs[pred_binary])
-        pred_std = round(float(np.std(probs[:, pred_binary])), 4)
-        return {
-            "value": pred,
-            "probability": round(reported_prob, 4),
-            "stddev": pred_std,
-            "unit": None,
-        }
-
-    raise ValueError(f"Unsupported CNN loss type: {target_spec['loss']}")
+def predict_body_stats_with_cnn(
+    img: nib.Nifti1Image,
+    target: str,
+    modality: str = "mr",
+    model_dir: Path | str | None = None,
+    fold: int | str | None = 0,
+    device="gpu",
+    debug: bool = False,
+) -> dict:
+    _validate_modality_and_target(modality, target)
+    return predict_all_body_stats_with_cnn(
+        img, modality=modality, model_dir=model_dir, fold=fold, device=device, debug=debug
+    )[target]
 
 
 def predict_body_weight_with_cnn(
     img: nib.Nifti1Image,
     modality: str = "mr",
     model_dir: Path | str | None = None,
-    fold: int | None = None,
+    fold: int | str | None = 0,
     device="gpu",
     debug: bool = False,
 ) -> dict:
