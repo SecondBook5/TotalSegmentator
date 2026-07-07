@@ -1,5 +1,6 @@
 import pickle
 import warnings
+from collections.abc import Mapping
 from pathlib import Path
 
 import nibabel as nib
@@ -459,24 +460,18 @@ class _MultiHeadOutput:
         return MultiHeadOutput()
 
 
-def _load_hparams_yaml(model_dir: Path, fold_idx: int) -> dict:
-    hparams_file = model_dir / f"version_{fold_idx}" / "hparams.yaml"
-    if not hparams_file.exists():
-        return {}
+def _get_checkpoint_hparams(checkpoint: dict, ckpt_file: Path) -> dict:
+    if "hyper_parameters" not in checkpoint:
+        raise KeyError(
+            f"Checkpoint {ckpt_file} does not contain a 'hyper_parameters' entry."
+        )
 
-    try:
-        import yaml
-    except ImportError:
-        return {}
-
-    with open(hparams_file) as f:
-        try:
-            hparams = yaml.safe_load(f) or {}
-        except yaml.constructor.ConstructorError:
-            # Lightning hparams.yaml can contain trusted local Python/NumPy tags
-            # such as numpy scalar values. SafeLoader intentionally rejects them.
-            f.seek(0)
-            hparams = yaml.load(f, Loader=yaml.UnsafeLoader) or {}
+    hparams = checkpoint["hyper_parameters"]
+    if not isinstance(hparams, Mapping):
+        raise TypeError(
+            f"Checkpoint {ckpt_file} contains invalid 'hyper_parameters': "
+            f"expected a mapping, got {type(hparams).__name__}."
+        )
     return dict(hparams)
 
 
@@ -486,9 +481,7 @@ def _load_fold_checkpoint_and_hparams(model_dir: Path, fold_idx: int) -> tuple[d
     if "state_dict" not in checkpoint:
         raise KeyError(f"Checkpoint {ckpt_file} does not contain a 'state_dict' entry.")
 
-    hparams = dict(checkpoint.get("hyper_parameters", {}))
-    if not hparams:
-        hparams = _load_hparams_yaml(model_dir, fold_idx)
+    hparams = _get_checkpoint_hparams(checkpoint, ckpt_file)
     return checkpoint, hparams
 
 
