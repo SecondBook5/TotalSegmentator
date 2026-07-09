@@ -300,9 +300,11 @@ def _get_crop_size(hparams: dict | None, modality: str) -> tuple[int, ...]:
 
 
 def _prepare_image_tensor(
-    img: nib.Nifti1Image, modality: str, hparams: dict | None = None
+    img: nib.Nifti1Image, modality: str, hparams: dict | None = None,
+    skip_canonical: bool = False
 ):
-    img = nib.as_closest_canonical(img)
+    if not skip_canonical:
+        img = nib.as_closest_canonical(img)
     img = change_spacing(img, CNN_TARGET_SPACING_MM, dtype=np.float32, order=1)
     img_data = np.asarray(img.dataobj, dtype=np.float32)
     dim = int(hparams.get("dim", 2)) if hparams else 2
@@ -736,6 +738,7 @@ def predict_all_body_stats_with_cnn(
     model_dir: Path | str | None = None,
     fold: int | str | None = 0,
     device="gpu",
+    skip_canonical: bool = False,
     debug: bool = False,
 ) -> dict:
     _validate_modality(modality)
@@ -744,7 +747,9 @@ def predict_all_body_stats_with_cnn(
     resolved_device = _resolve_device(device)
     fold_indices = _get_fold_indices(fold)
     hparams = _load_fold_hparams(model_dir, fold_indices[0])
-    img_tensor = _prepare_image_tensor(img, modality=modality, hparams=hparams).to(resolved_device)
+    img_tensor = _prepare_image_tensor(
+        img, modality=modality, hparams=hparams, skip_canonical=skip_canonical
+    ).to(resolved_device)
     if debug:
         print(f"DEBUG: CNN input tensor shape: {tuple(img_tensor.shape)}")
 
@@ -772,11 +777,13 @@ def predict_body_stats_with_cnn(
     model_dir: Path | str | None = None,
     fold: int | str | None = 0,
     device="gpu",
+    skip_canonical: bool = False,
     debug: bool = False,
 ) -> dict:
     _validate_modality_and_target(modality, target)
     return predict_all_body_stats_with_cnn(
-        img, modality=modality, model_dir=model_dir, fold=fold, device=device, debug=debug
+        img, modality=modality, model_dir=model_dir, fold=fold, device=device,
+        skip_canonical=skip_canonical, debug=debug
     )[target]
 
 
@@ -786,9 +793,10 @@ def predict_body_weight_with_cnn(
     model_dir: Path | str | None = None,
     fold: int | str | None = 0,
     device="gpu",
+    skip_canonical: bool = False,
     debug: bool = False,
 ) -> dict:
     return predict_body_stats_with_cnn(
         img, target="weight", modality=modality, model_dir=model_dir, fold=fold,
-        device=device, debug=debug
+        device=device, skip_canonical=skip_canonical, debug=debug
     )

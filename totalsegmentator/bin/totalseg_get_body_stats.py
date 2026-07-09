@@ -277,7 +277,8 @@ def get_body_stats(img, modality: str, f_type: str = "niigz", model_file: Path =
                    existing_stats: dict = None, existing_seg_img: nib.Nifti1Image = None,
                    fold: int | str = 0, license_number: str = None, use_border: bool = False,
                    call_via_subprocess: bool = False, model_type: str = "cnn",
-                   only_weight: bool = False, debug: bool = False):
+                   only_weight: bool = False, skip_canonical: bool = False,
+                   debug: bool = False):
     """
     Predict body weight, body size, age and sex based on a CT or MR scan.
     Also calculates BMI and body surface area based on the predicted values.
@@ -301,6 +302,8 @@ def get_body_stats(img, modality: str, f_type: str = "niigz", model_file: Path =
             "cnn" to use the CNN model
         only_weight: bool, optional - if True, predict only body weight and skip all
             other targets and derived measures
+        skip_canonical: bool, optional - if True, do not convert the input image to
+            closest canonical orientation
         debug: bool, optional - if True, print additional debugging information
     """
     setup_totalseg()
@@ -348,7 +351,8 @@ def get_body_stats(img, modality: str, f_type: str = "niigz", model_file: Path =
     if needs_default_xgboost_models and not check_body_stats_models_exist():
         download_pretrained_weights("body_stats")
 
-    img = nib.as_closest_canonical(img)  # important to cut tissue slices along correct axis
+    if not skip_canonical:
+        img = nib.as_closest_canonical(img)  # important to cut tissue slices along correct axis
 
     if model_type == "cnn":
         yield {
@@ -358,7 +362,7 @@ def get_body_stats(img, modality: str, f_type: str = "niigz", model_file: Path =
         }
         result = predict_all_body_stats_with_cnn(
             img, modality=modality, model_dir=model_file, fold=fold,
-            device=device, debug=debug
+            device=device, skip_canonical=skip_canonical, debug=debug
         )
         if only_weight:
             result = {"weight": result["weight"]}
@@ -575,6 +579,9 @@ def main():
     parser.add_argument("--only_weight", action="store_true", default=False,
                         help="Predict only body weight and skip size, age, sex, BMI, and BSA.")
 
+    parser.add_argument("-sc", "--skip_canonical", action="store_true", default=False,
+                        help="Do not convert the input image to closest canonical orientation.")
+
     parser.add_argument("--debug", action="store_true", default=False,
                         help="Print debugging information, including CNN input tensor shape.")
 
@@ -620,6 +627,7 @@ def main():
                              call_via_subprocess=args.call_via_subprocess,
                              model_type=args.model_type,
                              only_weight=args.only_weight,
+                             skip_canonical=args.skip_canonical,
                              debug=args.debug)
 
     for r in res_gen:
