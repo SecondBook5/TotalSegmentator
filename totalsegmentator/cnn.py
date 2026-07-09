@@ -26,6 +26,7 @@ CNN_FALLBACK_CROP_SIZE = {
     "mr": {2: (210, 210), 3: (210, 210, 150)},
 }
 CNN_TARGET_SPACING_MM = 2.0
+CNN_TTA_FLIP_AXES = (0, 1, 2)
 CNN_MODEL_TARGET_ORDER = ["PatientWeight", "PatientSize", "PatientAge", "PatientSex_01"]
 CNN_TARGET_SPECS = {
     "weight": {"training_name": "PatientWeight", "unit": "kg"},
@@ -340,6 +341,55 @@ def _prepare_image_tensor(
         raise ImportError("CNN body-stats inference requires PyTorch to be installed.") from exc
 
     return torch.from_numpy(img_stack[None, ...])
+
+
+def _flip_nifti_data(img: nib.Nifti1Image, axis: int) -> nib.Nifti1Image:
+    img_data = np.asanyarray(img.dataobj)
+    flipped_data = np.flip(img_data, axis=axis).copy()
+    return nib.Nifti1Image(flipped_data, img.affine, img.header)
+
+
+def _get_inference_image_variants(
+    img: nib.Nifti1Image,
+    skip_canonical: bool = False,
+    test_time_augmentation: bool = False,
+) -> list[tuple[nib.Nifti1Image, bool]]:
+    if not test_time_augmentation:
+        return [(img, skip_canonical)]
+
+    variants = []
+    for axis in CNN_TTA_FLIP_AXES:
+        flipped_img = _flip_nifti_data(img, axis)
+        variants.append((flipped_img, False))
+        variants.append((flipped_img, True))
+    return variants
+
+
+def _prepare_image_tensors(
+    img: nib.Nifti1Image,
+    modality: str,
+    hparams: dict | None = None,
+    skip_canonical: bool = False,
+    test_time_augmentation: bool = False,
+):
+    img_tensors = [
+        _prepare_image_tensor(
+            variant_img, modality=modality, hparams=hparams, skip_canonical=variant_skip_canonical
+        )
+        for variant_img, variant_skip_canonical in _get_inference_image_variants(
+            img, skip_canonical=skip_canonical, test_time_augmentation=test_time_augmentation
+        )
+    ]
+
+    if len(img_tensors) == 1:
+        return img_tensors[0]
+
+    try:
+        import torch
+    except ImportError as exc:
+        raise ImportError("CNN body-stats inference requires PyTorch to be installed.") from exc
+
+    return torch.cat(img_tensors, dim=0)
 
 
 def _resolve_device(device):
@@ -739,6 +789,7 @@ def predict_all_body_stats_with_cnn(
     fold: int | str | None = 0,
     device="gpu",
     skip_canonical: bool = False,
+    test_time_augmentation: bool = False,
     debug: bool = False,
 ) -> dict:
     _validate_modality(modality)
@@ -747,8 +798,12 @@ def predict_all_body_stats_with_cnn(
     resolved_device = _resolve_device(device)
     fold_indices = _get_fold_indices(fold)
     hparams = _load_fold_hparams(model_dir, fold_indices[0])
-    img_tensor = _prepare_image_tensor(
-        img, modality=modality, hparams=hparams, skip_canonical=skip_canonical
+    img_tensor = _prepare_image_tensors(
+        img,
+        modality=modality,
+        hparams=hparams,
+        skip_canonical=skip_canonical,
+        test_time_augmentation=test_time_augmentation,
     ).to(resolved_device)
     if debug:
         print(f"DEBUG: CNN input tensor shape: {tuple(img_tensor.shape)}")
@@ -762,9 +817,14 @@ def predict_all_body_stats_with_cnn(
     with torch.inference_mode():
         for fold_idx in fold_indices:
             model, fold_hparams = _load_fold_model(model_dir, fold_idx, resolved_device)
-            pred = model(img_tensor).detach().float().cpu().numpy()[0]
-            pred = np.atleast_1d(pred).astype(np.float32)
-            preds.append(_apply_regression_target_denormalization(pred, fold_hparams))
+            fold_preds = model(img_tensor).detach().float().cpu().numpy()
+            fold_preds = np.asarray(fold_preds, dtype=np.float32)
+            if fold_preds.ndim == 1:
+                fold_preds = fold_preds[:, None] if img_tensor.shape[0] == fold_preds.shape[0] else fold_preds[None, :]
+            else:
+                fold_preds = np.atleast_2d(fold_preds)
+            for pred in fold_preds:
+                preds.append(_apply_regression_target_denormalization(pred, fold_hparams))
 
     preds = np.stack(preds, axis=0)
     return _format_all_body_stats(preds, hparams)
@@ -778,12 +838,14 @@ def predict_body_stats_with_cnn(
     fold: int | str | None = 0,
     device="gpu",
     skip_canonical: bool = False,
+    test_time_augmentation: bool = False,
     debug: bool = False,
 ) -> dict:
     _validate_modality_and_target(modality, target)
     return predict_all_body_stats_with_cnn(
         img, modality=modality, model_dir=model_dir, fold=fold, device=device,
-        skip_canonical=skip_canonical, debug=debug
+        skip_canonical=skip_canonical, test_time_augmentation=test_time_augmentation,
+        debug=debug
     )[target]
 
 
@@ -794,9 +856,11 @@ def predict_body_weight_with_cnn(
     fold: int | str | None = 0,
     device="gpu",
     skip_canonical: bool = False,
+    test_time_augmentation: bool = False,
     debug: bool = False,
 ) -> dict:
     return predict_body_stats_with_cnn(
         img, target="weight", modality=modality, model_dir=model_dir, fold=fold,
-        device=device, skip_canonical=skip_canonical, debug=debug
+        device=device, skip_canonical=skip_canonical,
+        test_time_augmentation=test_time_augmentation, debug=debug
     )

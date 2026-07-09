@@ -278,7 +278,7 @@ def get_body_stats(img, modality: str, f_type: str = "niigz", model_file: Path =
                    fold: int | str = 0, license_number: str = None, use_border: bool = False,
                    call_via_subprocess: bool = False, model_type: str = "cnn",
                    only_weight: bool = False, skip_canonical: bool = False,
-                   debug: bool = False):
+                   test_time_augmentation: bool = False, debug: bool = False):
     """
     Predict body weight, body size, age and sex based on a CT or MR scan.
     Also calculates BMI and body surface area based on the predicted values.
@@ -304,6 +304,9 @@ def get_body_stats(img, modality: str, f_type: str = "niigz", model_file: Path =
             other targets and derived measures
         skip_canonical: bool, optional - if True, do not convert the input image to
             closest canonical orientation
+        test_time_augmentation: bool, optional - if True, run the CNN model on
+            flipped images along each axis, with and without canonical conversion,
+            and ensemble predictions via mean
         debug: bool, optional - if True, print additional debugging information
     """
     setup_totalseg()
@@ -351,9 +354,6 @@ def get_body_stats(img, modality: str, f_type: str = "niigz", model_file: Path =
     if needs_default_xgboost_models and not check_body_stats_models_exist():
         download_pretrained_weights("body_stats")
 
-    if not skip_canonical:
-        img = nib.as_closest_canonical(img)  # important to cut tissue slices along correct axis
-
     if model_type == "cnn":
         yield {
             "id": 2,
@@ -362,7 +362,8 @@ def get_body_stats(img, modality: str, f_type: str = "niigz", model_file: Path =
         }
         result = predict_all_body_stats_with_cnn(
             img, modality=modality, model_dir=model_file, fold=fold,
-            device=device, skip_canonical=skip_canonical, debug=debug
+            device=device, skip_canonical=skip_canonical,
+            test_time_augmentation=test_time_augmentation, debug=debug
         )
         if only_weight:
             result = {"weight": result["weight"]}
@@ -378,6 +379,9 @@ def get_body_stats(img, modality: str, f_type: str = "niigz", model_file: Path =
 
         yield {"id": 3, "progress": 100, "status": "Done", "result": result}
         return
+
+    if not skip_canonical:
+        img = nib.as_closest_canonical(img)  # important to cut tissue slices along correct axis
 
     st = time.time()
     vertebrae_seg_img = None
@@ -582,6 +586,11 @@ def main():
     parser.add_argument("-sc", "--skip_canonical", action="store_true", default=False,
                         help="Do not convert the input image to closest canonical orientation.")
 
+    parser.add_argument("-tta", "--test_time_augmentation", action="store_true", default=False,
+                        help="For CNN prediction, run six augmented predictions: input flipped along "
+                             "each image axis, with and without closest-canonical conversion, and "
+                             "ensemble them via mean.")
+
     parser.add_argument("--debug", action="store_true", default=False,
                         help="Print debugging information, including CNN input tensor shape.")
 
@@ -628,6 +637,7 @@ def main():
                              model_type=args.model_type,
                              only_weight=args.only_weight,
                              skip_canonical=args.skip_canonical,
+                             test_time_augmentation=args.test_time_augmentation,
                              debug=args.debug)
 
     for r in res_gen:
