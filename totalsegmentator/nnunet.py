@@ -565,11 +565,13 @@ def nnUNet_predict_image(file_in: Union[str, Path, Nifti1Image], file_out, task_
             nib.save(nib.Nifti1Image(img_in_rsp_data[:, :, third*2+1-margin:], img_in_rsp.affine),
                     tmp_dir / "s03_0000.nii.gz")
 
-        if task_name in ["total", "total_v3"] and resample is not None and resample[0] < 3.0:
-            # overall speedup for 15mm model roughly 11% (GPU) and 100% (CPU)
-            # overall speedup for  3mm model roughly  0% (GPU) and  10% (CPU)
-            # (dice 0.001 worse on test set -> ok)
-            # (for lung_trachea_bronchia somehow a lot lower dice)
+        # Use fewer overlapping tiles for every resolution variant of the total
+        # CT and MR models, including fast and fastest modes.
+        #   overall speedup for 15mm model roughly 11% (GPU) and 100% (CPU)
+        #   overall speedup for  3mm model roughly  0% (GPU) and  10% (CPU)
+        #   (dice 0.001 worse on test set -> ok)
+        #   (for lung_trachea_bronchia somehow a lot lower dice)
+        if task_name in ["total", "total_v3", "total_mr"]:
             step_size = 0.8
         else:
             step_size = 0.5
