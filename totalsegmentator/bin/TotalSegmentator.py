@@ -80,9 +80,14 @@ def main():
 
     parser.add_argument("-nr", "--nr_thr_resamp", type=int, help="Nr of threads for resampling", default=1)
 
-    parser.add_argument("-ro", "--resampling_order", type=resampling_order, default=3,
+    # CT downsampling benchmark:
+    # order=3: Dice: 0.920, NSD: 0.960, 1.5mm: 22s runtime, 3mm: 11s runtime
+    # order=1: Dice: 0.917, NSD: 0.959, 1.5mm: 12s runtime, 3mm: 1.6s runtime
+    #
+    # Info: -ro has no effect if -ho is used because then nnunet takes care of down- and upsampling
+    parser.add_argument("-ro", "--resampling_order", type=resampling_order, default=1,
                         help="Spline interpolation order for input image resampling (0-5). "
-                             "Default: 3. Setting this to 1 can speed up resampling with very similar segmentation accuracy."
+                             "Default: 1. Setting this to 3 may give slightly better segmentation accuracy at the cost of slower resampling. "
                              "(has no effect if -ho is used because then nnunet takes care of down- and upsampling)")
 
     parser.add_argument("-ns", "--nr_thr_saving", type=int, help="Nr of threads for saving segmentations",

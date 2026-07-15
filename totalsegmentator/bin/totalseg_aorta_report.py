@@ -56,7 +56,10 @@ def _load_metadata(path, logger):
 
 def _build_parser():
     parser = argparse.ArgumentParser(description="Generate aorta report.")
-    resolved_path = lambda value: Path(value).resolve()
+
+    def resolved_path(value):
+        return Path(value).resolve()
+
     parser.add_argument("-i", "--ct_path", type=resolved_path, required=True,
                         help="Path to ct file.")
     parser.add_argument("-rt", "--rois_totalseg", type=resolved_path, default=None,
