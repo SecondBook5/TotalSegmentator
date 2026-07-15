@@ -456,7 +456,7 @@ def plot_aorta_3d(aorta, true_lumen, false_lumen, all_vessels, centerline, landm
     # counter = itertools.count()
     # def timer_callback(_obj, _event):
     #     cnt = next(counter)
-    #     showm.scene.azimuth(1.5)  # Aizmuth is a constant factor for how fast to rotate the scene (higher is faster)
+    #     showm.scene.azimuth(1.5)  # Azimuth is a constant factor for how fast to rotate the scene (higher is faster)
     #     showm.render()
     #     # print(showm.scene.get_camera())
     #     if cnt == 5000:
