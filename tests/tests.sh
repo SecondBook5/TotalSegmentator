@@ -78,6 +78,6 @@ rm tests/unittest_prediction_fast.nii.gz
 rm tests/unittest_prediction_fast_force_split.nii.gz
 rm tests/unittest_prediction_fast_body_seg.nii.gz
 rm tests/unittest_phase_prediction.json
-rm tests/unittest_body_stats_prediction.json
+# rm tests/unittest_body_stats_prediction.json
 rm tests/unittest_run_report.json
 # rm tests/statistics.json
