@@ -50,6 +50,9 @@ jobs:
       - name: Run spine report tests
         run: pytest -v tests/test_spine_report.py
 
+      - name: Run aorta report tests
+        run: pytest -v tests/test_aorta_report.py
+
   # upload-dockerhub:
   #   runs-on: ubuntu-latest
   #   # needs: run-tests

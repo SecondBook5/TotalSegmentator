@@ -1,7 +1,6 @@
-import json
-import time
-
 import numpy as np
+
+from totalsegmentator.reporting import save_runtime
 
 
 def get_erosion_struct_elem(nifti_img, erosion_mm=2):
@@ -16,12 +15,3 @@ def get_erosion_struct_elem(nifti_img, erosion_mm=2):
     ]
 
     return x * x / (radii[0] ** 2) + y * y / (radii[1] ** 2) + z * z / (radii[2] ** 2) <= 1
-
-
-def save_runtime(start_time, report_name, nodeinfo_path):
-    runtime = time.time() - start_time
-    runtime_file = nodeinfo_path.parent / "META" / "runtime.json"
-    runtime_file.parent.mkdir(parents=True, exist_ok=True)
-    runtime_data = json.load(open(runtime_file)) if runtime_file.exists() else {}
-    runtime_data[report_name] = round(runtime, 2)
-    json.dump(runtime_data, open(runtime_file, "w"), indent=4)

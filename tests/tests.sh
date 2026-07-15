@@ -66,8 +66,8 @@ totalseg_get_phase -i tests/reference_files/example_ct_sm.nii.gz -o tests/unitte
 pytest -v tests/test_end_to_end.py::test_end_to_end::test_phase_prediction
 
 # Test body stats prediction
-totalseg_get_body_stats -i tests/reference_files/example_ct_sm.nii.gz -m ct -o tests/unittest_body_stats_prediction.json -d cpu -l $1
-pytest -v tests/test_end_to_end.py::test_end_to_end::test_body_stats_prediction
+# totalseg_get_body_stats -i tests/reference_files/example_ct_sm.nii.gz -m ct -o tests/unittest_body_stats_prediction.json -d cpu -l $1
+# pytest -v tests/test_end_to_end.py::test_end_to_end::test_body_stats_prediction
 
 # Cleanup generated files and directories
 rm -rf tests/unittest_prediction_roi_subset

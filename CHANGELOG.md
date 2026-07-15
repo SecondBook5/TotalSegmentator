@@ -1,5 +1,6 @@
 ## Master
 
+* add `totalseg_aorta_report` command to generate an aorta report with landmark diameters, section lengths/volumes, optional CPR visualization, JSON results and an RGB NIfTI report.
 
 ## Release 2.15.0 (01.07.2026)
 * add `--resampling_order` option to choose the spline interpolation order for input image resampling. Default remains 3; setting it to 1 can speed up resampling with very similar segmentation accuracy.

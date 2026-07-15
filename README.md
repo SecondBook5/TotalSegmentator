@@ -172,6 +172,14 @@ If you want to find osteoporotic spine fractures you can use the following comma
 totalseg_spine_report.py -i ct.nii.gz -o spine_report.nii.gz -j spine_report.json -l spine_report.log
 ```
 
+To measure aortic landmark diameters and section lengths/volumes, generate an RGB NIfTI report and optionally create a curved planar reformation (CPR), use the aorta report command. Running the required segmentation models needs a license, which is free for non-commercial usage [here](https://backend.totalsegmentator.com/license-academic/):
+```bash
+totalseg_aorta_report -i ct.nii.gz \
+  -o aorta_report.nii.gz -j aorta_report.json -l aorta_report.log \
+  -c aorta_cpr.png --run_models
+```
+Existing masks can instead be supplied with `--rois_totalseg` and `--rois_details`.
+
 Normally weights are automatically downloaded when running TotalSegmentator. If you want to download the weights with an extra command (e.g. when building a docker container) use this:
 ```bash
 totalseg_download_weights -t <task_name>
