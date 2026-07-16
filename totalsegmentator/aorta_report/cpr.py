@@ -1,12 +1,177 @@
-import sys
-from pathlib import Path
-
 import nibabel as nib
 import numpy as np
 
-from nibabel.processing import resample_from_to
 from scipy.ndimage import gaussian_filter1d, map_coordinates, spline_filter
 from tqdm import tqdm
+
+from totalsegmentator.aorta_report.centerline import resample_points_by_arc_length
+
+
+def _normalize_vector(vector):
+    norm = np.linalg.norm(vector)
+    if norm < 1e-8:
+        return None
+    return vector / norm
+
+
+def _resample_centerline(points_vox, vox_to_mm_affine, step_mm):
+    """Sample a voxel-space polyline at approximately uniform mm intervals."""
+    points_vox = np.asarray(points_vox, dtype=float)
+    if len(points_vox) == 0:
+        return np.empty((0, 3), dtype=float), np.empty((0,), dtype=float), 0.0
+    if len(points_vox) == 1:
+        return points_vox, np.array([0.0], dtype=float), 0.0
+
+    points_mm = nib.affines.apply_affine(vox_to_mm_affine, points_vox)
+    segment_lengths = np.linalg.norm(np.diff(points_mm, axis=0), axis=1)
+    cumulative_length = np.concatenate(([0.0], np.cumsum(segment_lengths)))
+    total_length = cumulative_length[-1]
+
+    if total_length < 1e-8:
+        return points_vox, np.array([0.0], dtype=float), float(total_length)
+
+    nr_points = max(2, int(np.ceil(total_length / step_mm)) + 1)
+    sample_positions = np.linspace(0.0, total_length, nr_points)
+    resampled_mm = resample_points_by_arc_length(points_mm, sample_positions)
+    resampled_vox = nib.affines.apply_affine(
+        np.linalg.inv(vox_to_mm_affine), resampled_mm
+    )
+    return resampled_vox, sample_positions, float(total_length)
+
+
+def _axis_angle_to_matrix(axis, angle):
+    axis = _normalize_vector(axis)
+    if axis is None or abs(angle) < 1e-8:
+        return np.eye(3)
+    x, y, z = axis
+    skew = np.array([
+        [0.0, -z, y],
+        [z, 0.0, -x],
+        [-y, x, 0.0],
+    ])
+    return np.eye(3) + np.sin(angle) * skew + (1.0 - np.cos(angle)) * (skew @ skew)
+
+
+def _rotation_between(vector_a, vector_b, fallback_axis=None):
+    vector_a = _normalize_vector(vector_a)
+    vector_b = _normalize_vector(vector_b)
+    if vector_a is None or vector_b is None:
+        return np.eye(3)
+
+    cross = np.cross(vector_a, vector_b)
+    cross_norm = np.linalg.norm(cross)
+    dot = np.clip(np.dot(vector_a, vector_b), -1.0, 1.0)
+    if cross_norm >= 1e-8:
+        return _axis_angle_to_matrix(cross / cross_norm, np.arctan2(cross_norm, dot))
+    if dot > 0.999999:
+        return np.eye(3)
+
+    axis = fallback_axis
+    if axis is None:
+        axis = np.array([1.0, 0.0, 0.0])
+    axis = _normalize_vector(axis - np.dot(axis, vector_a) * vector_a)
+    if axis is None:
+        for candidate in np.eye(3):
+            axis = _normalize_vector(candidate - np.dot(candidate, vector_a) * vector_a)
+            if axis is not None:
+                break
+    return _axis_angle_to_matrix(axis, np.pi)
+
+
+def _pick_reference_axis(tangent):
+    reference_axes = np.eye(3)
+    return reference_axes[np.argmin(np.abs(reference_axes @ tangent))]
+
+
+def _centerline_tangents(points_mm):
+    tangents = np.zeros_like(points_mm)
+    tangents[0] = points_mm[1] - points_mm[0]
+    tangents[-1] = points_mm[-1] - points_mm[-2]
+    if len(points_mm) > 2:
+        tangents[1:-1] = points_mm[2:] - points_mm[:-2]
+
+    for index, raw_tangent in enumerate(tangents):
+        tangent = _normalize_vector(raw_tangent)
+        if tangent is not None:
+            tangents[index] = tangent
+        elif index > 0:
+            tangents[index] = tangents[index - 1]
+        else:
+            for candidate in tangents[1:]:
+                tangent = _normalize_vector(candidate)
+                if tangent is not None:
+                    tangents[index] = tangent
+                    break
+            else:
+                raise ValueError("Unable to determine tangent directions for CPR.")
+    return tangents
+
+
+def _parallel_transport_frames(tangents):
+    """Return stable normal/binormal vectors along unit tangents."""
+    normals = np.zeros_like(tangents)
+    binormals = np.zeros_like(tangents)
+    reference = _pick_reference_axis(tangents[0])
+    normal = _normalize_vector(reference - np.dot(reference, tangents[0]) * tangents[0])
+    if normal is None:
+        raise ValueError("Unable to initialize CPR frame.")
+    binormal = _normalize_vector(np.cross(tangents[0], normal))
+    normals[0] = _normalize_vector(np.cross(binormal, tangents[0]))
+    binormals[0] = binormal
+
+    for index in range(1, len(tangents)):
+        rotation = _rotation_between(
+            tangents[index - 1], tangents[index], normals[index - 1]
+        )
+        normal = rotation @ normals[index - 1]
+        normal = _normalize_vector(normal - np.dot(normal, tangents[index]) * tangents[index])
+        if normal is None:
+            reference = _pick_reference_axis(tangents[index])
+            normal = _normalize_vector(
+                reference - np.dot(reference, tangents[index]) * tangents[index]
+            )
+        if normal is None:
+            normal = normals[index - 1]
+
+        binormal = _normalize_vector(np.cross(tangents[index], normal))
+        if binormal is None:
+            binormal = binormals[index - 1]
+        normal = _normalize_vector(np.cross(binormal, tangents[index]))
+        if np.dot(normal, normals[index - 1]) < 0:
+            normal *= -1.0
+            binormal *= -1.0
+        normals[index] = normal
+        binormals[index] = binormal
+    return normals, binormals
+
+
+def _build_sampling_grid(max_diameter_mm, spacing_mm):
+    in_plane_spacing_mm = float(np.clip(spacing_mm, 0.6, 1.0))
+    field_of_view_mm = max(float(max_diameter_mm) * 1.6, 48.0)
+    plane_size = max(int(np.ceil(field_of_view_mm / in_plane_spacing_mm)), 32)
+    if plane_size % 2 == 0:
+        plane_size += 1
+    axis_mm = (
+        np.arange(plane_size) - (plane_size - 1) / 2.0
+    ) * in_plane_spacing_mm
+    grid_u, grid_v = np.meshgrid(axis_mm, axis_mm, indexing="ij")
+    return grid_u.astype(np.float32), grid_v.astype(np.float32), in_plane_spacing_mm
+
+
+def _chunk_ranges(nr_slices, plane_size, target_points=1_000_000):
+    points_per_slice = plane_size * plane_size
+    chunk_size = max(1, min(nr_slices, target_points // points_per_slice))
+    return range(0, nr_slices, chunk_size), chunk_size
+
+
+def _sampling_plane_chunk(centers_mm, normals, binormals, grid_u, grid_v):
+    """Construct flattened world-space sampling coordinates for a slice chunk."""
+    plane_mm = (
+        centers_mm[:, None, None, :]
+        + grid_u[None, :, :, None] * normals[:, None, None, :]
+        + grid_v[None, :, :, None] * binormals[:, None, None, :]
+    )
+    return plane_mm.reshape(-1, 3)
 
 
 def cpr(ct_img, mask_img, cl, max_dia, fast=False, debug=False, extra_mask_imgs=None, return_info=False):
@@ -23,87 +188,6 @@ def cpr(ct_img, mask_img, cl, max_dia, fast=False, debug=False, extra_mask_imgs=
 
     returns: 3d nifti images: ct_img_cpr, mask_img_cpr
     """
-    def _normalize(vec):
-        norm = np.linalg.norm(vec)
-        if norm < 1e-8:
-            return None
-        return vec / norm
-
-    def _resample_centerline(points_vox, vox_to_mm_affine, step_mm):
-        if len(points_vox) == 0:
-            return np.empty((0, 3), dtype=float), np.empty((0,), dtype=float), 0.0
-        if len(points_vox) == 1:
-            return points_vox.astype(float), np.array([0.0], dtype=float), 0.0
-
-        points_mm = nib.affines.apply_affine(vox_to_mm_affine, points_vox)
-        segment_lengths = np.linalg.norm(np.diff(points_mm, axis=0), axis=1)
-        cumulative_length = np.concatenate(([0.0], np.cumsum(segment_lengths)))
-        total_length = cumulative_length[-1]
-
-        if total_length < 1e-8:
-            return points_vox.astype(float), np.array([0.0], dtype=float), float(total_length)
-
-        nr_points = max(2, int(np.ceil(total_length / step_mm)) + 1)
-        sample_positions = np.linspace(0.0, total_length, nr_points)
-        resampled_mm = np.column_stack([
-            np.interp(sample_positions, cumulative_length, points_mm[:, dim])
-            for dim in range(points_mm.shape[1])
-        ])
-        resampled_vox = nib.affines.apply_affine(np.linalg.inv(vox_to_mm_affine), resampled_mm)
-        return resampled_vox, sample_positions, float(total_length)
-
-    def _axis_angle_to_matrix(axis, angle):
-        axis = _normalize(axis)
-        if axis is None or abs(angle) < 1e-8:
-            return np.eye(3)
-        x, y, z = axis
-        skew = np.array([
-            [0.0, -z, y],
-            [z, 0.0, -x],
-            [-y, x, 0.0],
-        ])
-        return np.eye(3) + np.sin(angle) * skew + (1.0 - np.cos(angle)) * (skew @ skew)
-
-    def _rotation_between(vec_a, vec_b, fallback_axis=None):
-        vec_a = _normalize(vec_a)
-        vec_b = _normalize(vec_b)
-        if vec_a is None or vec_b is None:
-            return np.eye(3)
-
-        cross = np.cross(vec_a, vec_b)
-        cross_norm = np.linalg.norm(cross)
-        dot = np.clip(np.dot(vec_a, vec_b), -1.0, 1.0)
-
-        if cross_norm < 1e-8:
-            if dot > 0.999999:
-                return np.eye(3)
-
-            axis = fallback_axis
-            if axis is None:
-                axis = np.array([1.0, 0.0, 0.0])
-            axis = axis - np.dot(axis, vec_a) * vec_a
-            axis = _normalize(axis)
-            if axis is None:
-                for candidate in (
-                    np.array([1.0, 0.0, 0.0]),
-                    np.array([0.0, 1.0, 0.0]),
-                    np.array([0.0, 0.0, 1.0]),
-                ):
-                    axis = candidate - np.dot(candidate, vec_a) * vec_a
-                    axis = _normalize(axis)
-                    if axis is not None:
-                        break
-            return _axis_angle_to_matrix(axis, np.pi)
-
-        axis = cross / cross_norm
-        angle = np.arctan2(cross_norm, dot)
-        return _axis_angle_to_matrix(axis, angle)
-
-    def _pick_reference_axis(tangent):
-        reference_axes = np.eye(3)
-        scores = np.abs(reference_axes @ tangent)
-        return reference_axes[np.argmin(scores)]
-
     if len(cl) == 0:
         raise ValueError("Centerline is empty.")
 
@@ -129,77 +213,12 @@ def cpr(ct_img, mask_img, cl, max_dia, fast=False, debug=False, extra_mask_imgs=
         cl_mm[0] = nib.affines.apply_affine(mask_img.affine, cl_vox[0])
         cl_mm[-1] = nib.affines.apply_affine(mask_img.affine, cl_vox[-1])
 
-    tangents = np.zeros_like(cl_mm)
-    tangents[0] = cl_mm[1] - cl_mm[0]
-    tangents[-1] = cl_mm[-1] - cl_mm[-2]
-    if len(cl_mm) > 2:
-        tangents[1:-1] = cl_mm[2:] - cl_mm[:-2]
-
-    for idx in range(len(tangents)):
-        tangent = _normalize(tangents[idx])
-        if tangent is not None:
-            tangents[idx] = tangent
-            continue
-
-        if idx > 0:
-            tangents[idx] = tangents[idx - 1]
-        else:
-            next_valid = None
-            for jdx in range(idx + 1, len(tangents)):
-                tangent = _normalize(tangents[jdx])
-                if tangent is not None:
-                    next_valid = tangent
-                    break
-            if next_valid is None:
-                raise ValueError("Unable to determine tangent directions for CPR.")
-            tangents[idx] = next_valid
-
-    normals = np.zeros_like(cl_mm)
-    binormals = np.zeros_like(cl_mm)
-
-    ref_axis = _pick_reference_axis(tangents[0])
-    normal0 = ref_axis - np.dot(ref_axis, tangents[0]) * tangents[0]
-    normal0 = _normalize(normal0)
-    if normal0 is None:
-        raise ValueError("Unable to initialize CPR frame.")
-    binormal0 = _normalize(np.cross(tangents[0], normal0))
-    normal0 = _normalize(np.cross(binormal0, tangents[0]))
-    normals[0] = normal0
-    binormals[0] = binormal0
-
-    for idx in range(1, len(cl_mm)):
-        rotation = _rotation_between(tangents[idx - 1], tangents[idx], normals[idx - 1])
-        normal = rotation @ normals[idx - 1]
-        normal = normal - np.dot(normal, tangents[idx]) * tangents[idx]
-        normal = _normalize(normal)
-        if normal is None:
-            ref_axis = _pick_reference_axis(tangents[idx])
-            normal = ref_axis - np.dot(ref_axis, tangents[idx]) * tangents[idx]
-            normal = _normalize(normal)
-            if normal is None:
-                normal = normals[idx - 1]
-
-        binormal = _normalize(np.cross(tangents[idx], normal))
-        if binormal is None:
-            binormal = binormals[idx - 1]
-        normal = _normalize(np.cross(binormal, tangents[idx]))
-
-        if np.dot(normal, normals[idx - 1]) < 0:
-            normal *= -1.0
-            binormal *= -1.0
-
-        normals[idx] = normal
-        binormals[idx] = binormal
-
-    in_plane_spacing_mm = float(np.clip(np.min(ct_spacing), 0.6, 1.0))
-    fov_mm = max(float(max_dia) * 1.6, 48.0)
-    plane_size = int(np.ceil(fov_mm / in_plane_spacing_mm))
-    plane_size = max(plane_size, 32)
-    if plane_size % 2 == 0:
-        plane_size += 1
-
-    axis_coords_mm = (np.arange(plane_size) - (plane_size - 1) / 2.0) * in_plane_spacing_mm
-    grid_u, grid_v = np.meshgrid(axis_coords_mm, axis_coords_mm, indexing="ij")
+    tangents = _centerline_tangents(cl_mm)
+    normals, binormals = _parallel_transport_frames(tangents)
+    grid_u, grid_v, in_plane_spacing_mm = _build_sampling_grid(
+        max_dia, np.min(ct_spacing)
+    )
+    plane_size = grid_u.shape[0]
 
     ct_data = np.asarray(ct_img.get_fdata(), dtype=np.float32)
     cpr_mask_imgs = [mask_img, *extra_mask_imgs]
@@ -222,10 +241,7 @@ def cpr(ct_img, mask_img, cl, max_dia, fast=False, debug=False, extra_mask_imgs=
     res_ct = np.empty((nr_slices, plane_size, plane_size), dtype=np.float32)
     res_masks = [np.empty((nr_slices, plane_size, plane_size), dtype=np.uint8) for _ in cpr_mask_imgs]
 
-    points_per_slice = plane_size * plane_size
-    target_points_per_chunk = 1_000_000
-    chunk_size = max(1, min(nr_slices, target_points_per_chunk // points_per_slice))
-    chunk_ranges = range(0, nr_slices, chunk_size)
+    chunk_ranges, chunk_size = _chunk_ranges(nr_slices, plane_size)
 
     ct_linear = inv_ct_affine[:3, :3].astype(np.float32)
     ct_offset = inv_ct_affine[:3, 3].astype(np.float32)
@@ -235,7 +251,7 @@ def cpr(ct_img, mask_img, cl, max_dia, fast=False, debug=False, extra_mask_imgs=
 
     iterator = chunk_ranges
     if debug:
-        iterator = tqdm(iterator, total=len(range(0, nr_slices, chunk_size)), desc="CPR chunks")
+        iterator = tqdm(iterator, total=len(chunk_ranges), desc="CPR chunks")
 
     for start_idx in iterator:
         end_idx = min(start_idx + chunk_size, nr_slices)
@@ -243,12 +259,9 @@ def cpr(ct_img, mask_img, cl, max_dia, fast=False, debug=False, extra_mask_imgs=
         chunk_normals = normals[start_idx:end_idx].astype(np.float32, copy=False)
         chunk_binormals = binormals[start_idx:end_idx].astype(np.float32, copy=False)
 
-        plane_mm = (
-            centers_mm[:, None, None, :]
-            + grid_u[None, :, :, None] * chunk_normals[:, None, None, :]
-            + grid_v[None, :, :, None] * chunk_binormals[:, None, None, :]
+        flat_mm = _sampling_plane_chunk(
+            centers_mm, chunk_normals, chunk_binormals, grid_u, grid_v
         )
-        flat_mm = plane_mm.reshape(-1, 3)
 
         coords_ct = (flat_mm @ ct_linear.T + ct_offset).T
 

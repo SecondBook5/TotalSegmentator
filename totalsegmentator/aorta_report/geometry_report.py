@@ -4,25 +4,19 @@ import nibabel as nib
 import numpy as np
 from nibabel.processing import resample_from_to
 from scipy import ndimage
-from scipy.ndimage import (
-    binary_closing,
-    binary_dilation,
-    binary_erosion,
-    binary_fill_holes,
-)
+from scipy.ndimage import binary_dilation
 
 from totalsegmentator.aorta_report.centerline import (
-    get_distance,
     get_index_for_point,
     get_mid_of_points,
     get_normal_for_cl_point,
 )
 from totalsegmentator.aorta_report.geometry import (
+    cleanup_plane,
     draw_plane,
     find_center,
     find_mask_normal,
-    get_region_diameters,
-    max_perpendicular_line,
+    get_plane_diameters,
     rotate_affine_of_image_and_translate,
     vox_to_mm_space,
     vox_to_mm_space_without_offset,
@@ -36,10 +30,9 @@ def keep_closest_blob(data, reference_point, debug=False):
     distances = {}
     for blob_idx in range(1, count + 1):
         coordinates = np.asarray(np.where(blob_map == blob_idx)).T
-        samples = coordinates[
-            np.random.choice(range(len(coordinates)), size=10, replace=True)
-        ]
-        distances[blob_idx] = np.linalg.norm(reference_point - samples, axis=1).mean()
+        distances[blob_idx] = np.linalg.norm(
+            coordinates - reference_point, axis=1
+        ).mean()
     if debug:
         print("Blob distances:")
         print(distances)
@@ -56,6 +49,17 @@ def get_plane_aorta_intersection(aorta, plane_point, normal_vec):
 
 
 def get_plane_aorta_intersection_crop(aorta_img, plane_point, normal_vec, crop_size=30):
+    cropped, intersection = _get_cropped_plane_intersection(
+        aorta_img, plane_point, normal_vec, crop_size
+    )
+    return resample_from_to(
+        nib.Nifti1Image(intersection, cropped.affine),
+        aorta_img,
+        order=0,
+    )
+
+
+def _get_cropped_plane_intersection(aorta_img, plane_point, normal_vec, crop_size):
     cropped = crop_to_point(
         aorta_img, plane_point, [crop_size] * 3, dtype=np.uint8
     )
@@ -65,21 +69,30 @@ def get_plane_aorta_intersection_crop(aorta_img, plane_point, normal_vec, crop_s
     intersection = get_plane_aorta_intersection(
         cropped.get_fdata().astype(np.uint8), cropped_point, normal_vec
     )
-    return resample_from_to(
-        nib.Nifti1Image(intersection.astype(np.uint8), cropped.affine),
-        aorta_img,
-        order=0,
-    )
+    return cropped, intersection.astype(np.uint8)
 
 
-def _diameter_from_centerline_index(aorta, centerline, index, spacing):
-    plane = get_plane_aorta_intersection(
+def _diameter_from_centerline_index(
+    aorta, centerline, index, spacing, crop_size=30
+):
+    if index is None or not 0 <= index < len(centerline):
+        return np.float32(0)
+    if not isinstance(aorta, nib.spatialimages.SpatialImage):
+        plane = get_plane_aorta_intersection(
+            aorta,
+            centerline[index].point,
+            get_normal_for_cl_point(centerline, index),
+        )
+        diameter, _, _, _ = get_plane_diameters(plane, spacing)
+        return np.float32(diameter)
+    _, plane = _get_cropped_plane_intersection(
         aorta,
         centerline[index].point,
         get_normal_for_cl_point(centerline, index),
+        crop_size,
     )
-    _, start, end = next(get_region_diameters(plane))
-    return get_distance(start, end, spacing)
+    diameter, _, _, _ = get_plane_diameters(plane, spacing)
+    return np.float32(diameter)
 
 
 def get_max_diameter_of_centerline_section(
@@ -90,20 +103,17 @@ def get_max_diameter_of_centerline_section(
     subsample=2,
     crop_size=30,
 ):
+    if subsample < 1:
+        raise ValueError("subsample must be at least 1")
     if len(centerline) < 2:
         print(f"WARNING: centerline section too short (len: {len(centerline)})")
-        return (0, np.float32(0)) if return_diameter else 0
+        return (None, np.float32(0)) if return_diameter else None
     areas = {}
-    for idx, vertex in enumerate(centerline[::subsample]):
+    for idx in range(0, len(centerline), subsample):
+        vertex = centerline[idx]
         normal = get_normal_for_cl_point(centerline, idx)
-        cropped = crop_to_point(
-            aorta_img, vertex.point, [crop_size] * 3, dtype=np.uint8
-        )
-        point = vox_to_other_vox_space(
-            vertex.point, aorta_img.affine, cropped.affine
-        )
-        intersection = get_plane_aorta_intersection(
-            cropped.get_fdata().astype(np.uint8), point, normal
+        _, intersection = _get_cropped_plane_intersection(
+            aorta_img, vertex.point, normal, crop_size
         )
         areas[tuple(vertex.point)] = intersection.sum()
     max_point = max(areas, key=areas.get)
@@ -111,33 +121,52 @@ def get_max_diameter_of_centerline_section(
         return max_point
     index = get_index_for_point(centerline, max_point)
     return max_point, _diameter_from_centerline_index(
-        aorta_img.get_fdata().astype(np.uint8), centerline, index, spacing
+        aorta_img, centerline, index, spacing, crop_size
     )
 
 
 def get_aorta_section(aorta_img, start, end, centerline, crop_size=30):
     aorta = aorta_img.get_fdata().astype(np.uint8)
-    if len(centerline) < 2:
+    if (
+        len(centerline) < 2
+        or start is None
+        or end is None
+        or not 0 <= start < len(centerline)
+        or not 0 <= end < len(centerline)
+    ):
         print("WARNING: centerline section too short to calculate aorta section")
         return nib.Nifti1Image(np.zeros_like(aorta), aorta_img.affine)
-    start_intersection = get_plane_aorta_intersection_crop(
+    if end < start:
+        start, end = end, start
+    start_crop, start_intersection = _get_cropped_plane_intersection(
         aorta_img,
         centerline[start].point,
         get_normal_for_cl_point(centerline, start),
         crop_size,
-    ).get_fdata()
-    end_intersection = get_plane_aorta_intersection_crop(
+    )
+    end_crop, end_intersection = _get_cropped_plane_intersection(
         aorta_img,
         centerline[end].point,
         get_normal_for_cl_point(centerline, end),
         crop_size,
-    ).get_fdata()
-    midpoint = centerline[get_mid_of_points(centerline, start, end)].point
-    aorta[start_intersection > 0] = 0
-    aorta[end_intersection > 0] = 0
-    blobs, _ = ndimage.label(aorta)
-    selected = blobs[tuple(np.asarray(midpoint, dtype=int))]
-    return nib.Nifti1Image((blobs == selected).astype(np.uint8), aorta_img.affine)
+    )
+
+    def clear_crop(cropped, intersection):
+        origin = np.rint(
+            vox_to_other_vox_space((0, 0, 0), cropped.affine, aorta_img.affine)
+        ).astype(int)
+        slices = tuple(
+            slice(origin[axis], origin[axis] + intersection.shape[axis])
+            for axis in range(3)
+        )
+        aorta[slices][intersection > 0] = 0
+
+    clear_crop(start_crop, start_intersection)
+    clear_crop(end_crop, end_intersection)
+    midpoint_idx = get_mid_of_points(centerline, start, end)
+    midpoint = centerline[midpoint_idx].point
+    section = keep_closest_blob(aorta, midpoint)
+    return nib.Nifti1Image(section, aorta_img.affine)
 
 
 def get_2d_plane(mask, ct_img, mask_2, mask_3, order=0, dtype=np.uint8, addon=(0, 0, 0)):
@@ -154,10 +183,14 @@ def get_2d_plane(mask, ct_img, mask_2, mask_3, order=0, dtype=np.uint8, addon=(0
         if mask_3 is not None
         else None
     )
-    center = vox_to_mm_space(find_center(mask_data), mask_cropped.affine)
-    normal = vox_to_mm_space_without_offset(
-        find_mask_normal(mask_data), mask_cropped.affine
-    )
+    center_vox = find_center(mask_data)
+    if center_vox is None:
+        center_vox = (np.asarray(mask_data.shape) - 1) / 2
+        normal_vox = np.array([0.0, 0.0, 1.0])
+    else:
+        normal_vox = find_mask_normal(mask_data)
+    center = vox_to_mm_space(center_vox, mask_cropped.affine)
+    normal = vox_to_mm_space_without_offset(normal_vox, mask_cropped.affine)
     target = vox_to_mm_space_without_offset(
         np.array([0, 0, 1]), mask_cropped.affine
     )
@@ -188,27 +221,34 @@ def process_plane(ct_img, mask_img, mask_img_2, output_path, smooth=20):
     from totalsegmentator.aorta_report.plotting import plot_img
 
     image = ct_img.get_fdata()
-    mask = binary_fill_holes(binary_closing(mask_img.get_fdata())).astype(np.uint8)
+    mask = cleanup_plane(mask_img.get_fdata())
     mask_2 = (
-        binary_fill_holes(binary_closing(mask_img_2.get_fdata())).astype(np.uint8)
+        cleanup_plane(mask_img_2.get_fdata())
         if mask_img_2 is not None
         else None
     )
     center = find_center(mask, True)
-    image, mask = image[:, :, center[2]], mask[:, :, center[2]]
+    z = center[2] if center is not None else mask.shape[2] // 2
+    image, mask = image[:, :, z], mask[:, :, z]
     if mask_2 is not None:
-        mask_2 = mask_2[:, :, center[2]]
-    mask = binary_fill_holes(binary_closing(mask)).astype(np.uint8)
-    spacing = np.asarray(ct_img.header.get_zooms())[:2]
-    _, start, end = next(get_region_diameters(mask))
-    _, start_pd, end_pd = max_perpendicular_line(mask, start, end)
+        mask_2 = mask_2[:, :, z]
+    mask = cleanup_plane(mask)
+    _, _, major, perpendicular = get_plane_diameters(mask)
+    start, end = major if major is not None else (None, None)
+    start_pd, end_pd = perpendicular if perpendicular is not None else (None, None)
+    diameter_points = (
+        [start, end, start_pd, end_pd] if major is not None else None
+    )
     figure = plot_img(
         image,
         mask,
         mask_2,
-        [start, end, start_pd, end_pd],
+        diameter_points,
         vmin=-700,
         vmax=1000,
         smooth=smooth,
     )
     figure.savefig(output_path, bbox_inches="tight", pad_inches=0)
+    from matplotlib import pyplot as plt
+
+    plt.close(figure)

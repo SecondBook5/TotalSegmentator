@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import time
-
 import nibabel as nib
 import numpy as np
 from nibabel.processing import resample_from_to
@@ -29,14 +27,16 @@ def crop_to_masks(
     fixed_size=False,
 ):
     addon = (np.asarray(addon) / img_in.header.get_zooms()[:3]).astype(int)
+    if not masks_in:
+        raise ValueError("masks_in must contain at least one mask")
     reference = masks_in[0]
-    combined = np.zeros(reference.shape)
+    combined = np.zeros(reference.shape, dtype=np.uint8)
     for mask_img in masks_in:
-        combined[mask_img.get_fdata() > 0.5] = 1
+        combined[np.asanyarray(mask_img.dataobj) > 0.5] = 1
     if combined.shape != img_in.shape or not np.allclose(reference.affine, img_in.affine):
         combined = resample_from_to(
             nib.Nifti1Image(combined, reference.affine), img_in, order=0
-        ).get_fdata()
+        ).get_fdata(dtype=np.float32)
     if fixed_size:
         if combined.any():
             coordinates = np.where(combined > 0)
@@ -58,25 +58,63 @@ def crop_to_point(img_in, center, size=(10, 10, 10), dtype=np.int32):
     )
 
 
-def lazy_load(file_path, target_ref_img, tmp_dir, order=0, dtype=np.float32):
+def _resolve_mask_path(file_path):
     file_path = file_path if file_path.exists() else (
         file_path.parent / "brachiocephalic_trunc.nii.gz"
         if file_path.name == "brachiocephalic_trunk.nii.gz"
         else file_path
     )
+    return file_path
+
+
+def _empty_image_like(reference, dtype):
+    data = np.zeros(reference.shape, dtype=dtype)
+    return nib.Nifti1Image(data, reference.affine, reference.header)
+
+
+def lazy_load(
+    file_path,
+    target_ref_img,
+    tmp_dir,
+    order=0,
+    dtype=np.float32,
+    is_mask=None,
+    required=True,
+    use_cache=True,
+):
+    """Load and resample a NIfTI image, optionally using the historical cache.
+
+    ``is_mask=None`` preserves the old value-based mask detection. New callers
+    should pass ``is_mask=False`` for CT images and ``is_mask=True`` for masks.
+    Set ``required=False`` explicitly to represent a missing optional mask as
+    an empty image in the target geometry.
+    """
+    file_path = _resolve_mask_path(file_path)
+    output_dtype = np.dtype(np.uint8 if is_mask is True else dtype)
+    if not file_path.exists():
+        if required:
+            raise FileNotFoundError(file_path)
+        image = _empty_image_like(target_ref_img, output_dtype)
+        return image, np.asanyarray(image.dataobj)
+
     output_path = tmp_dir / file_path.name
-    if output_path.exists():
+    if use_cache and output_path.exists() and output_path != file_path:
         print(f"  loading existing ({output_path.name})...")
-        image = nib.load(output_path)
-        return image, image.get_fdata()
+        cached_image = nib.load(output_path)
+        data = np.asanyarray(cached_image.dataobj).astype(output_dtype, copy=False)
+        image = nib.Nifti1Image(data, cached_image.affine, cached_image.header)
+        return image, data
+
     image = resample_from_to(nib.load(file_path), target_ref_img, order=order)
-    data = image.get_fdata()
-    if dtype != np.float32:
-        data = data.astype(dtype)
-    if data.max() <= 1:
-        data = keep_largest_blob(data)
-    image = nib.Nifti1Image(data, image.affine)
-    nib.save(image, output_path)
+    data = image.get_fdata(dtype=np.float32)
+    process_as_mask = is_mask if is_mask is not None else data.max(initial=0) <= 1
+    if process_as_mask:
+        data = keep_largest_blob(data > 0.5).astype(output_dtype, copy=False)
+    else:
+        data = data.astype(output_dtype, copy=False)
+    image = nib.Nifti1Image(data, image.affine, image.header)
+    if use_cache and output_path != file_path:
+        nib.save(image, output_path)
     return image, data
 
 
@@ -97,8 +135,6 @@ def crop_to_aorta(ct_path, tmp_dir, logger, totalseg_version="v2"):
     )
     print(f"  shape After: {ct_img.shape}")
     nib.save(ct_img, output_path)
-    (tmp_dir / "aorta.nii.gz").unlink()
-    (tmp_dir / f"{heart_name}.nii.gz").unlink()
     return output_path
 
 

@@ -11,19 +11,25 @@ from totalsegmentator.reporting import generate_html
 PLACEHOLDER_RGB = np.array([255, 0, 255], dtype=np.uint8)
 
 
-def _render_layout_base(content_width, content_height, metadata=None, report_title="Aorta Report", tmp_dir=None):
+def _placeholder_bbox(layout_img):
+    layout_arr = np.asarray(layout_img)
+    placeholder_mask = np.all(
+        np.abs(layout_arr.astype(np.int16) - PLACEHOLDER_RGB.astype(np.int16)) <= 5,
+        axis=2,
+    )
+    if not placeholder_mask.any():
+        raise RuntimeError("Unable to find CPR content placeholder in rendered report layout.")
+    ys, xs = np.where(placeholder_mask)
+    return int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1
+
+
+def _render_layout_in_dir(
+    content_width, content_height, metadata, report_title, tmp_dir
+):
     assets_dir = importlib.resources.files('totalsegmentator').joinpath('resources/aorta_report')
     page_width = max(int(content_width) + 48, 900)
-
-    metadata = dict(metadata or {})
-    metadata.setdefault("version", "")
-
-    if tmp_dir is None:
-        tmp_dir = Path(tempfile.mkdtemp())
-    else:
-        tmp_dir = Path(tmp_dir)
-        tmp_dir.mkdir(parents=True, exist_ok=True)
-
+    tmp_dir = Path(tmp_dir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
     layout_path = tmp_dir / f"report_layout_{page_width}x{int(content_height)}.png"
     template_vars = {
         "metadata": metadata,
@@ -41,14 +47,20 @@ def _render_layout_base(content_width, content_height, metadata=None, report_tit
         width=page_width,
         png_logo_hosts=("rigi", "rndapollolp01.uhbs.ch"),
     ).convert("RGB")
-    layout_arr = np.array(layout_img)
-    placeholder_mask = np.all(np.abs(layout_arr.astype(np.int16) - PLACEHOLDER_RGB.astype(np.int16)) <= 5, axis=2)
-    if not placeholder_mask.any():
-        raise RuntimeError("Unable to find CPR content placeholder in rendered report layout.")
+    return layout_img, _placeholder_bbox(layout_img)
 
-    ys, xs = np.where(placeholder_mask)
-    bbox = (int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1)
-    return layout_img, bbox
+
+def _render_layout_base(content_width, content_height, metadata=None, report_title="Aorta Report", tmp_dir=None):
+    metadata = dict(metadata or {})
+    metadata.setdefault("version", "")
+    if tmp_dir is not None:
+        return _render_layout_in_dir(
+            content_width, content_height, metadata, report_title, tmp_dir
+        )
+    with tempfile.TemporaryDirectory(prefix="totalseg_aorta_layout_") as render_dir:
+        return _render_layout_in_dir(
+            content_width, content_height, metadata, report_title, render_dir
+        )
 
 
 def compose_report_image(content_image, metadata=None, report_title="Aorta Report", tmp_dir=None, layout_base=None):

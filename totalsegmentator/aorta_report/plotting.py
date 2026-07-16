@@ -1,8 +1,4 @@
-import sys
 from pathlib import Path
-# p_dir = str(Path(__file__).absolute().parents[1])
-# if p_dir not in sys.path: sys.path.insert(0, p_dir)
-import time
 
 from PIL import Image
 import numpy as np
@@ -60,19 +56,13 @@ def plot_img(img, mask, mask_2, diameter_points, vmin=None, vmax=None, cmap="gra
     plt.imshow(img, cmap=cmap, interpolation="bilinear", origin='lower', vmin=vmin, vmax=vmax)
 
     # plot contours 1
-    contours = measure.find_contours(mask, 0.5)
-    if contours is not None:
-        for contour in contours:
-            x, y = smooth_contours(contour, s=smooth)
-            plt.plot(x, y, linewidth=2, color="green")
+    for x, y in _iter_smoothed_contours(mask, smooth=smooth):
+        plt.plot(x, y, linewidth=2, color="green")
 
     # plot contours 2
     if mask_2 is not None:
-        contours = measure.find_contours(mask_2, 0.5)
-        if contours is not None:
-            for contour in contours:
-                x, y = smooth_contours(contour, s=smooth)
-                plt.plot(x, y, linewidth=2, color="red")
+        for x, y in _iter_smoothed_contours(mask_2, smooth=smooth):
+            plt.plot(x, y, linewidth=2, color="red")
 
     # plot diameter
     if diameter_points is not None:
@@ -112,21 +102,14 @@ def plot_sagittal_and_coronal_slice(img, mask, output_path, vmin, vmax):
 
 
     # plot mask
-    contours = measure.find_contours(mask_sagittal, 0.5)
-    if contours is not None:
-        for contour in contours:
-            ax1.plot(contour[:, 1], contour[:, 0], linewidth=1, color="red")
-
-    contours = measure.find_contours(mask_coronal, 0.5)
-    if contours is not None:
-        for contour in contours:
-            ax2.plot(contour[:, 1], contour[:, 0], linewidth=1, color="red")
+    _plot_mask_contours(ax1, mask_sagittal, color="red", smooth=0, linewidth=1)
+    _plot_mask_contours(ax2, mask_coronal, color="red", smooth=0, linewidth=1)
 
     ax1.axis("off")
     ax2.axis("off")
 
-    plt.savefig(output_path, bbox_inches="tight", pad_inches=0, transparent=True)
-    plt.close()
+    fig.savefig(output_path, bbox_inches="tight", pad_inches=0, transparent=True)
+    plt.close(fig)
 
 
 def _safe_smooth_contour(contour, smooth=20):
@@ -138,21 +121,66 @@ def _safe_smooth_contour(contour, smooth=20):
         return contour[:, 1], contour[:, 0]
 
 
+def _iter_smoothed_contours(mask_2d, smooth=20):
+    for contour in measure.find_contours(mask_2d, 0.5):
+        if len(contour) >= 3:
+            yield _safe_smooth_contour(contour, smooth=smooth)
+
+
 def _plot_mask_contours(ax, mask_2d, color, smooth=20, linewidth=1.6):
-    contours = measure.find_contours(mask_2d, 0.5)
-    if contours is None:
-        return
-    for contour in contours:
-        x, y = _safe_smooth_contour(contour, smooth=smooth)
-        ax.plot(
-            x,
-            y,
-            linewidth=linewidth,
-            color=color,
-            # antialiased=True,
-            # solid_joinstyle="round",
-            # solid_capstyle="round",
+    for x, y in _iter_smoothed_contours(mask_2d, smooth=smooth):
+        ax.plot(x, y, linewidth=linewidth, color=color)
+
+
+def _plot_diameter_curves(ax, curve_y_mm, aorta_curve, true_curve=None, false_curve=None):
+    """Plot all available diameter curves and return handles and x-axis maximum."""
+    plotted_curves = []
+    finite_curves = []
+    curve_specs = (
+        (aorta_curve, "#f7c66a", 1.6, 0.85, "Aorta"),
+        (true_curve, "#7CFC70", 2.2, 1.0, "True lumen"),
+        (false_curve, "#ff6b6b", 2.2, 1.0, "False lumen"),
+    )
+    for curve, color, width, alpha, label in curve_specs:
+        if curve is None:
+            continue
+        curve = np.asarray(curve)
+        finite = np.isfinite(curve)
+        if not finite.any():
+            continue
+        plotted_curves.append(
+            ax.plot(
+                curve, curve_y_mm, color=color, linewidth=width, alpha=alpha, label=label
+            )[0]
         )
+        finite_curves.append(curve[finite])
+    finite_max = max((float(np.max(curve)) for curve in finite_curves), default=10.0)
+    return plotted_curves, max(finite_max, 10.0)
+
+
+def _style_diameter_profile(
+    ax, display_y_max, max_curve_mm, landmark_positions=(), labelsize=None
+):
+    for landmark in landmark_positions:
+        ax.axhline(landmark["distance_mm"], color="white", linewidth=0.8, alpha=0.25)
+        ax.text(
+            max_curve_mm * 1.05,
+            landmark["distance_mm"],
+            landmark["label"],
+            color="white",
+            fontsize=8 if labelsize is None else labelsize,
+            va="center",
+            ha="left",
+        )
+    ax.set_xlabel("Diameter [mm]", color="white", fontsize=labelsize)
+    ax.set_ylabel("Along aorta centerline [mm]", color="white", fontsize=labelsize)
+    ax.set_xlim(0, max_curve_mm * 1.45)
+    ax.set_ylim(display_y_max, 0)
+    ax.tick_params(colors="white", labelsize=labelsize)
+    ax.grid(axis="x", color="white", alpha=0.15, linewidth=0.6)
+    for spine in ax.spines.values():
+        spine.set_color("white")
+        spine.set_alpha(0.4)
 
 
 def _fit_curve_positions_to_display(curve_positions_mm, display_y_mm):
@@ -294,37 +322,14 @@ def plot_cpr_overview(img, mask, output_path, vmin, vmax, true_lumen_mask=None, 
         ax.set_title(title, color="white", fontsize=12, pad=10)
         ax.axis("off")
 
-    plotted_curves = []
-    finite_curves = []
-
-    if np.isfinite(aorta_curve).any():
-        plotted_curves.append(ax3.plot(aorta_curve, curve_y_mm, color="#f7c66a", linewidth=1.6, alpha=0.85, label="Aorta")[0])
-        finite_curves.append(aorta_curve[np.isfinite(aorta_curve)])
-    if true_curve is not None and np.isfinite(true_curve).any():
-        plotted_curves.append(ax3.plot(true_curve, curve_y_mm, color="#7CFC70", linewidth=2.2, label="True lumen")[0])
-        finite_curves.append(true_curve[np.isfinite(true_curve)])
-    if false_curve is not None and np.isfinite(false_curve).any():
-        plotted_curves.append(ax3.plot(false_curve, curve_y_mm, color="#ff6b6b", linewidth=2.2, label="False lumen")[0])
-        finite_curves.append(false_curve[np.isfinite(false_curve)])
-
-    max_curve_mm = max((float(np.max(curve)) for curve in finite_curves), default=10.0)
-    max_curve_mm = max(max_curve_mm, 10.0)
-
-    for landmark in landmark_positions:
-        ax3.axhline(landmark["distance_mm"], color="white", linewidth=0.8, alpha=0.25)
-        ax3.text(max_curve_mm * 1.05, landmark["distance_mm"], landmark["label"],
-                 color="white", fontsize=8, va="center", ha="left")
+    plotted_curves, max_curve_mm = _plot_diameter_curves(
+        ax3, curve_y_mm, aorta_curve, true_curve, false_curve
+    )
+    _style_diameter_profile(
+        ax3, float(display_y_mm.max()), max_curve_mm, landmark_positions
+    )
 
     ax3.set_title("Diameter Profile", color="white", fontsize=12, pad=10)
-    ax3.set_xlabel("Diameter [mm]", color="white")
-    ax3.set_ylabel("Along aorta centerline [mm]", color="white")
-    ax3.set_xlim(0, max_curve_mm * 1.45)
-    ax3.set_ylim(display_y_mm.max(), 0)
-    ax3.tick_params(colors="white")
-    ax3.grid(axis="x", color="white", alpha=0.15, linewidth=0.6)
-    for spine in ax3.spines.values():
-        spine.set_color("white")
-        spine.set_alpha(0.4)
     if plotted_curves:
         ax3.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=3, fontsize=9)
 
@@ -337,38 +342,48 @@ def plot_cpr_overview(img, mask, output_path, vmin, vmax, true_lumen_mask=None, 
     final_img.save(output_path)
 
 
+def _record_rotating_scene(window, scene, output_prefix, window_size, nr_frames):
+    scene.reset_camera_tight(margin_factor=1.02)
+    azimuth_angle = int(360 / nr_frames * 1.2)
+    window.record(
+        scene=scene,
+        size=window_size,
+        out_path=str(output_prefix),
+        reset_camera=True,
+        path_numbering=True,
+        n_frames=nr_frames,
+        az_ang=azimuth_angle,
+    )
+    for frame_index in range(nr_frames):
+        frame_path = f"{output_prefix}{frame_index:06d}.png"
+        with Image.open(frame_path) as frame_image:
+            cropped = np.asarray(frame_image)[100:-100, 150:-150].copy()
+        Image.fromarray(cropped).save(frame_path)
+
+
 def plot_masks_3d(masks, output_path, file_prefix, smoothing=20, nr_frames=12, debug=False, colors_subset=None):
     """
     todo: check that all masks are not empty -> otherwise error
 
     masks: list of binary mask ([ndarray])
     """
-    from fury import window, actor, ui, io, utils
-    from totalsegmentator.vtk_utils import contour_from_roi_smooth, plot_mask
+    from fury import window
+    from totalsegmentator.vtk_utils import plot_mask
 
     window_size = (700, 900)
     scene = window.Scene()
-    showm = window.ShowManager(scene=scene, size=window_size, reset_camera=False)
-    showm.initialize()
-    
-    for idx, mask in enumerate(masks):
-        color = list(colors.keys())[idx] if colors_subset is None else colors_subset[idx]
-        scene.add(plot_mask(scene, mask, np.eye(4), 0, 0, smoothing=smoothing,
-                color=colors[color], opacity=1.0, orientation="sagittal"))
-
-    # Save single shot
-    scene.reset_camera_tight(margin_factor=1.02)  # need to do reset_camera=False in record for this to work in
-    az_ang = int(360 / nr_frames * 1.2)  # increase 20% to make a bit more than one full rotation
-    # Video
-    output_path = str(output_path / file_prefix)
-    window.record(scene=scene, size=window_size, out_path=output_path, reset_camera=True,
-                  path_numbering=True, n_frames=nr_frames, az_ang=az_ang)
-    for i in range(nr_frames):
-        img = np.array(Image.open(output_path + f"{i:06d}.png"))
-        img = img[100:-100, 150:-150]  # top, bottom, left, right
-        Image.fromarray(img).save(output_path + f"{i:06d}.png")
-
-    scene.clear()
+    try:
+        for idx, mask in enumerate(masks):
+            color = list(colors.keys())[idx] if colors_subset is None else colors_subset[idx]
+            scene.add(plot_mask(
+                scene, mask, np.eye(4), 0, 0, smoothing=smoothing,
+                color=colors[color], opacity=1.0, orientation="sagittal",
+            ))
+        _record_rotating_scene(
+            window, scene, Path(output_path) / file_prefix, window_size, nr_frames
+        )
+    finally:
+        scene.clear()
     
     
 def plot_aorta_3d(aorta, true_lumen, false_lumen, all_vessels, centerline, landmarks, output_path, smoothing=20, nr_frames=12, debug=False):
@@ -379,27 +394,12 @@ def plot_aorta_3d(aorta, true_lumen, false_lumen, all_vessels, centerline, landm
     all_vessels: binary mask (ndarray)
     landsmakrs: dict of all landsmarks. each landmark has keys cl_idx, roi, diameter
     """
-    from fury import window, actor, ui, io, utils
-    from totalsegmentator.vtk_utils import contour_from_roi_smooth, plot_mask
+    from fury import actor, window
+    from totalsegmentator.vtk_utils import plot_mask
 
     for lm_nr, lm_dict in landmarks.items():
         lm_dict["color"] = list(colors.values())[lm_nr-1]
 
-    # Offsets to move text nicely next to ROIs
-    # x: left(-)/right(+), y: up(+)/down(-), z: front/back
-    # landmarks[1]["txt_offset"] = np.array([-80,-10,0])
-    # landmarks[2]["txt_offset"] = np.array([-80,-5,0])
-    # landmarks[3]["txt_offset"] = np.array([-80,0,0])
-    # landmarks[4]["txt_offset"] = np.array([-80,0,0])
-    # landmarks[5]["txt_offset"] = np.array([-80,0,0])
-    # landmarks[6]["txt_offset"] = np.array([-40,20,0])
-    # landmarks[7]["txt_offset"] = np.array([0,0,0])
-    # landmarks[8]["txt_offset"] = np.array([20,0,0])
-    # landmarks[9]["txt_offset"] = np.array([20,0,0])
-    # landmarks[10]["txt_offset"] = np.array([20,0,0])
-    # landmarks[11]["txt_offset"] = np.array([20,0,0])
-
-    # offset if only showing number
     landmarks[1]["txt_offset"] = np.array([-50,-10,0])
     landmarks[2]["txt_offset"] = np.array([-50,-5,0])
     landmarks[3]["txt_offset"] = np.array([-50,0,0])
@@ -414,83 +414,47 @@ def plot_aorta_3d(aorta, true_lumen, false_lumen, all_vessels, centerline, landm
 
     window_size = (700, 900)
     scene = window.Scene()
-    showm = window.ShowManager(scene=scene, size=window_size, reset_camera=False)
-    showm.initialize()
-    
-    scene.add(plot_mask(scene, aorta, np.eye(4), 0, 0, smoothing=smoothing,
-              color=colors["gray_light"], opacity=.3, orientation="sagittal"))
-    
-    # scene.add(plot_mask(scene, true_lumen, np.eye(4), 0, 0, smoothing=smoothing,
-    #           color=colors["green"], opacity=.3, orientation="sagittal"))
-    
-    scene.add(plot_mask(scene, false_lumen, np.eye(4), 0, 0, smoothing=smoothing,
-              color=colors["red"], opacity=.1, orientation="sagittal"))
+    try:
+        scene.add(plot_mask(
+            scene, aorta, np.eye(4), 0, 0, smoothing=smoothing,
+            color=colors["gray_light"], opacity=.3, orientation="sagittal",
+        ))
+        scene.add(plot_mask(
+            scene, false_lumen, np.eye(4), 0, 0, smoothing=smoothing,
+            color=colors["red"], opacity=.1, orientation="sagittal",
+        ))
+        scene.add(plot_mask(
+            scene, all_vessels, np.eye(4), 0, 0, smoothing=smoothing,
+            color=colors["gray_dark"], opacity=1.0, orientation="sagittal",
+        ))
+        scene.add(plot_mask(
+            scene, centerline, np.eye(4), 0, 0, smoothing=0,
+            color=colors["red"], opacity=1.0, orientation="sagittal",
+        ))
 
-    scene.add(plot_mask(scene, all_vessels, np.eye(4), 0, 0, smoothing=smoothing,
-              color=colors["gray_dark"], opacity=1.0, orientation="sagittal"))
-    
-    scene.add(plot_mask(scene, centerline, np.eye(4), 0, 0, smoothing=0,
-              color=colors["red"], opacity=1.0, orientation="sagittal"))
+        for lm_nr, lm_dict in landmarks.items():
+            if lm_dict["empty"]:
+                continue
+            scene.add(plot_mask(
+                scene, lm_dict["roi"], np.eye(4), 0, 0,
+                color=lm_dict["color"], orientation="sagittal", smoothing=smoothing,
+            ))
+            size = all_vessels.shape
+            x, y, z = lm_dict["cl_point"]
+            x = size[0] - x
+            x, y, z = y, z, x
+            x = size[1] - x
+            position = np.array([x, y, z]) + lm_dict["txt_offset"]
+            scene.add(actor.vector_text(
+                text=f"{lm_nr}", pos=position, scale=(8, 8, 8), color=colors["white"]
+            ))
 
-    for lm_nr, lm_dict in landmarks.items():
-        if not lm_dict["empty"]:
-            cont_actor = plot_mask(scene, lm_dict["roi"], np.eye(4), 0, 0, color=lm_dict["color"],
-                                orientation="sagittal", smoothing=smoothing)
-            scene.add(cont_actor)
-
-            # Apply the same transformations to these points as we applied to the entire image in plot_mask()
-            ss = all_vessels.shape
-            x,y,z = lm_dict["cl_point"]
-            x = ss[0] - x  # invert x
-            x,y,z = y,z,x
-            x = ss[1] - x  # invert y
-            position = np.array([x,y,z]) + lm_dict["txt_offset"]
-            # text_actor = actor.text_3d(f"Pos{lm_nr}: {lm_dict['diameter']:.1f}mm", position,
-            #                            colors["white"], 6, shadow=False)  # does not face the camera
-            text_actor = actor.vector_text(text=f"{lm_nr}", pos=position,
-                                        scale=(8,8,8), color=colors["white"])  # always faces the camera
-            scene.add(text_actor)
-
-    # Show rotating video
-    fps = 20  # Frames per second
-    # counter = itertools.count()
-    # def timer_callback(_obj, _event):
-    #     cnt = next(counter)
-    #     showm.scene.azimuth(1.5)  # Azimuth is a constant factor for how fast to rotate the scene (higher is faster)
-    #     showm.render()
-    #     # print(showm.scene.get_camera())
-    #     if cnt == 5000:
-    #         showm.exit()
-
-    # Show a bit rotated for better frontal view on aorta
-    # (not tested yet if this is also a good view for all subjects)
-    # -> this is nice if only want to record a single image, not a video
-    # showm.scene.set_camera(position=(-182., 109., 677.),
-    #                        focal_point=(124., 109., 145.),
-    #                        view_up=(0.0, 1.0, 0.0))
-
-    # showm.add_timer_callback(True, int(1000 // fps), timer_callback)  # Run every 100ms
-    # showm.start()
-
-    # Save single shot
-    # scene.projection(proj_type='parallel')
-    scene.reset_camera_tight(margin_factor=1.02)  # need to do reset_camera=False in record for this to work in
-    # output_path = str(output_path / "preview_3d.png")
-    # window.record(scene=scene, size=window_size, out_path=output_path, reset_camera=False)
-
-    # crop left and right size to remove black borders
-    # img = np.array(Image.open(output_path))
-    # img = img[:, 100:-100]
-    # Image.fromarray(img).save(output_path)
-
-    az_ang = int(360 / nr_frames * 1.2)  # increase 20% to make a bit more than one full rotation
-    # Video
-    output_path = str(output_path / "preview_3d_rotating_")
-    window.record(scene=scene, size=window_size, out_path=output_path, reset_camera=True,
-                  path_numbering=True, n_frames=nr_frames, az_ang=az_ang)
-    for i in range(nr_frames):
-        img = np.array(Image.open(output_path + f"{i:06d}.png"))
-        img = img[100:-100, 150:-150]  # top, bottom, left, right
-        Image.fromarray(img).save(output_path + f"{i:06d}.png")
-
-    scene.clear()
+        _record_rotating_scene(
+            window,
+            scene,
+            Path(output_path) / "preview_3d_rotating_",
+            window_size,
+            nr_frames,
+        )
+    finally:
+        scene.clear()

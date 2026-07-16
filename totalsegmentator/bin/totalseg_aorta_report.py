@@ -1,7 +1,5 @@
 import argparse
 import json
-import os
-import sys
 import tempfile
 import time
 from pathlib import Path
@@ -60,45 +58,75 @@ def _build_parser():
     def resolved_path(value):
         return Path(value).resolve()
 
-    parser.add_argument("-i", "--ct_path", type=resolved_path, required=True,
-                        help="Path to ct file.")
-    parser.add_argument("-rt", "--rois_totalseg", type=resolved_path, default=None,
-                        help="Path to directory containing the totalseg rois.")
-    parser.add_argument("-rd", "--rois_details", type=resolved_path, default=None,
-                        help="Path to directory containing the detailed aorta analysis specific rois.")
-    parser.add_argument("-n", "--nodeinfo", type=resolved_path,
-                        help="Optional path to nodeinfo file.")
-    parser.add_argument("-o", "--output_nifti", type=resolved_path, required=True,
-                        help="Path to output nifti file")
-    parser.add_argument("-j", "--output_json", type=resolved_path, required=True,
-                        help="Path to output json file")
-    parser.add_argument("-l", "--output_log", type=resolved_path, required=True,
-                        help="Path to output log file")
-    parser.add_argument("-tmp", "--tmp_dir", type=resolved_path,
-                        help="Path to tmp dir. If not set, then use system tmp dir.")
-    parser.add_argument("-c", "--cpr", type=resolved_path, default=None,
-                        help="Path to CPR output png file.")
-    parser.add_argument("-ca", "--cpr_animated", type=resolved_path, default=None,
-                        help="Path to animated CPR output nifti file (.nii.gz).")
-    parser.add_argument("-a", "--aorta_fn", default="aorta.nii.gz",
-                        help="Filename of the aorta mask.")
-    parser.add_argument("-an", "--annulus_fn", default="annulus_proper.nii.gz",
-                        help="Filename of the annulus mask.")
-    parser.add_argument("-rm", "--run_models", action="store_true",
-                        help="Run all models from within this code instead of in extra code.")
-    parser.add_argument("-mp", "--models_parallel", action="store_true",
-                        help="Run all models in parallel. Faster, but needs more RAM + GPU memory.")
+    parser.add_argument("-i", "--ct_path", type=resolved_path, required=True, help="Path to CT file.")
+    parser.add_argument("-rt", "--rois_totalseg", type=resolved_path, help="Directory containing the TotalSegmentator ROIs.")
+    parser.add_argument("-rd", "--rois_details", type=resolved_path, help="Directory containing the detailed aorta ROIs.")
+    parser.add_argument("-n", "--nodeinfo", type=resolved_path, help="Optional path to nodeinfo file.")
+    parser.add_argument("-o", "--output_nifti", type=resolved_path, required=True, help="Path to output NIfTI file.")
+    parser.add_argument("-j", "--output_json", type=resolved_path, required=True, help="Path to output JSON file.")
+    parser.add_argument("-l", "--output_log", type=resolved_path, required=True, help="Path to output log file.")
+    parser.add_argument("-tmp", "--tmp_dir", type=resolved_path, help="Temporary directory. Uses a system temporary directory if omitted.")
+    parser.add_argument("-c", "--cpr", type=resolved_path, help="Path to CPR output PNG file.")
+    parser.add_argument("-ca", "--cpr_animated", type=resolved_path, help="Path to animated CPR output NIfTI file (.nii.gz).")
+    parser.add_argument("-a", "--aorta_fn", default="aorta.nii.gz", help="Filename of the aorta mask.")
+    parser.add_argument("-an", "--annulus_fn", default="annulus_proper.nii.gz", help="Filename of the annulus mask.")
+    parser.add_argument("-rm", "--run_models", action="store_true", help="Run all models from within this command.")
+    parser.add_argument("-mp", "--models_parallel", action="store_true", help="Run all models in parallel. Faster, but needs more RAM and GPU memory.")
     parser.add_argument("-t", "--test", default="None", help="Define which test to run.")
-    parser.add_argument("-e", "--erosion", action="store_true",
-                        help="Erode aorta by 0.8mm to make aorta fit better.")
-    parser.add_argument("-d", "--debug", action="store_true",
-                        help="If debug use other tmp dir and same more intermediate outputs.")
-    parser.add_argument("-sd", "--skip_dissection", action="store_true",
-                        help="Skip using true/false lumen segmentation even if available.")
-    parser.add_argument("-r", "--save_runtime", action="store_true",
-                        help="Save runtime to META/runtime.json file.")
+    parser.add_argument("-e", "--erosion", action="store_true", help="Erode aorta by 0.8 mm to make the aorta fit better.")
+    parser.add_argument("-d", "--debug", action="store_true", help="Keep temporary and intermediate files for debugging.")
+    parser.add_argument("-sd", "--skip_dissection", action="store_true", help="Skip true/false lumen segmentation even if available.")
+    parser.add_argument("-r", "--save_runtime", action="store_true", help="Save runtime to META/runtime.json.")
     parser.add_argument("--version", action="version", version=VERSION)
     return parser
+
+
+def _prepare_tmp_dir(args):
+    if args.debug:
+        print("Running in DEBUG mode.")
+
+    if args.tmp_dir is not None:
+        tmp_dir = args.tmp_dir
+    else:
+        tmp_dir = Path(tempfile.mkdtemp())
+
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    delete_tmp = args.tmp_dir is None and not args.debug
+    delete_aux_files = not args.debug
+    return tmp_dir, delete_tmp, delete_aux_files
+
+
+def _validate_ct(ct_path, logger):
+    ct_img = nib.load(ct_path)
+    shape = ct_img.shape
+    if len(shape) != 3:
+        logger.info("WARNING: Image shape is not 3D. Stopping.")
+        return False
+    if max(shape) > 1500:
+        logger.info("WARNING: Image shape is very large (>1500). Stopping.")
+        return False
+    if min(shape) < 20:
+        logger.info("WARNING: Image shape is very small (<20). Stopping.")
+        return False
+
+    linear_affine = ct_img.affine[:3, :3].copy()
+    if linear_affine.min() < 0:
+        logger.info("WARNING: Affine contains negative values!")
+    np.fill_diagonal(linear_affine, 0)
+    if np.abs(linear_affine).max() > 0.01:
+        logger.info("WARNING: Affine contains significant rotation!")
+    return True
+
+
+def _save_report(final_result, output_nifti, output_json):
+    report_image = decompress_and_deserialize(final_result["report_img"])
+    nib.save(report_image, output_nifti)
+    with output_json.open("w") as file:
+        json.dump(
+            convert_to_serializable(final_result["report_json"]),
+            file,
+            indent=4,
+        )
 
 """
 Run for one test case:
@@ -118,19 +146,23 @@ totalseg_aorta_report \
   -d
 """
 def main():
-    args = _build_parser().parse_args()
-    if args.debug:
-        print("Running in DEBUG mode.")
-        tmp_dir = args.tmp_dir.absolute()
-        delete_tmp = delete_aux_files = False
-    elif args.tmp_dir:
-        tmp_dir = args.tmp_dir.absolute()
-        delete_tmp, delete_aux_files = False, True
-    else:
-        tmp_dir = Path(tempfile.mkdtemp())
-        delete_tmp = delete_aux_files = True
-    tmp_dir.mkdir(exist_ok=True)
-    args.output_nifti.parent.mkdir(exist_ok=True)
+    parser = _build_parser()
+    args = parser.parse_args()
+    if not args.run_models and (
+        args.rois_totalseg is None or args.rois_details is None
+    ):
+        parser.error("--rois_totalseg and --rois_details are required without --run_models")
+
+    for output_path in (
+        args.output_nifti,
+        args.output_json,
+        args.output_log,
+        args.cpr,
+        args.cpr_animated,
+    ):
+        if output_path is not None:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
     logger = setup_logger(
         args.output_log, name=f"totalseg_aorta_report.{args.output_log}"
     )
@@ -140,54 +172,35 @@ def main():
     if metadata is None:
         return
 
-    ct_img = nib.load(args.ct_path)
-    f_type = "nii" if args.ct_path.suffix == ".nii" else "niigz"
-    linear_affine = ct_img.affine[:3, :3].copy()
-    if linear_affine.min() < 0:
-        logger.info("WARNING: Affine contains negative values!")
-    np.fill_diagonal(linear_affine, 0)
-    if linear_affine.max() > 0.01:
-        logger.info("WARNING: Affine contains significant rotation!")
-    shape = ct_img.shape
     if metadata["PatientAge"] < 5 or metadata["PatientAge"] > 150:
         logger.info("WARNING: Patient age is not in range [5, 150]. Stopping.")
         return
-    if max(shape) > 1500:
-        logger.info("WARNING: Image shape is very large (>1500). Stopping.")
-        return
-    if min(shape) < 20:
-        logger.info("WARNING: Image shape is very small (<20). Stopping.")
-        return
-    if len(shape) != 3:
-        logger.info("WARNING: Image shape is not 3D. Stopping.")
+    if not _validate_ct(args.ct_path, logger):
         return
 
+    tmp_dir, delete_tmp, delete_aux_files = _prepare_tmp_dir(args)
     logger.info("Creating report...")
-    ct_input = nib.Nifti1Image(
-        np.asanyarray(ct_img.dataobj), ct_img.affine, ct_img.header
-    )
     generator = create_aorta_report(
-        ct_input,
+        args.ct_path,
         args.rois_totalseg,
         args.rois_details,
         metadata,
         tmp_dir,
         logger,
-        delete_tmp,
-        delete_aux_files,
-        args.cpr,
-        args.cpr_animated,
-        args.aorta_fn,
-        args.annulus_fn,
-        args.test,
-        args.debug,
-        args.run_models,
-        args.models_parallel,
-        f_type,
-        "local",
-        args.erosion,
-        VERSION,
-        args.skip_dissection,
+        delete_tmp=delete_tmp,
+        delete_aux_files=delete_aux_files,
+        cpr_path=args.cpr,
+        cpr_animated_path=args.cpr_animated,
+        aorta_fn=args.aorta_fn,
+        annulus_fn=args.annulus_fn,
+        test=args.test,
+        debug=args.debug,
+        run_models=args.run_models,
+        models_parallel=args.models_parallel,
+        host="local",
+        erosion=args.erosion,
+        version=VERSION,
+        skip_dissection=args.skip_dissection,
     )
     final_result = None
     for result in generator:
@@ -196,18 +209,9 @@ def main():
             final_result = result
     if final_result is None:
         raise RuntimeError("Aorta report generator did not return a final result.")
-    report_image = decompress_and_deserialize(final_result["report_img"])
-    nib.save(report_image, args.output_nifti)
-    with args.output_json.open("w") as file:
-        json.dump(
-            convert_to_serializable(final_result["report_json"]),
-            file,
-            indent=4,
-        )
+    _save_report(final_result, args.output_nifti, args.output_json)
     if args.save_runtime and args.nodeinfo is not None and args.nodeinfo.exists():
         save_runtime(started, "aorta_report", args.nodeinfo)
-    if args.cpr_animated is not None:
-        os._exit(0)
 
 
 if __name__ == "__main__":

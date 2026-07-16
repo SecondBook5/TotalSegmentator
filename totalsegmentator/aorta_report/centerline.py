@@ -55,10 +55,7 @@ def _build_trees(data):
 
 
 def get_len_path(path):
-    return sum(
-        np.linalg.norm(path[idx].point - path[idx - 1].point)
-        for idx in range(1, len(path))
-    )
+    return float(get_cumulative_arc_lengths(path)[-1]) if path else 0.0
 
 
 def get_distance(a, b, spacing):
@@ -66,11 +63,38 @@ def get_distance(a, b, spacing):
 
 
 def get_len_path_mm(path, spacing):
-    return np.float32(
-        sum(
-            get_distance(path[idx].point, path[idx - 1].point, spacing)
-            for idx in range(1, len(path))
-        )
+    lengths = get_cumulative_arc_lengths(path, spacing)
+    return np.float32(lengths[-1] if len(lengths) else 0.0)
+
+
+def get_cumulative_arc_lengths(centerline, spacing=None):
+    """Return cumulative distances along a centerline, including zero."""
+    if not centerline:
+        return np.empty(0, dtype=float)
+    points = np.asarray([vertex.point for vertex in centerline], dtype=float)
+    differences = np.diff(points, axis=0)
+    if spacing is not None:
+        differences *= np.asarray(spacing, dtype=float)
+    segment_lengths = np.linalg.norm(differences, axis=1)
+    return np.concatenate(([0.0], np.cumsum(segment_lengths)))
+
+
+def resample_points_by_arc_length(points, positions):
+    """Linearly sample points at positions along their cumulative arc length."""
+    points = np.asarray(points, dtype=float)
+    positions = np.asarray(positions, dtype=float)
+    if not len(points) or not len(positions):
+        return np.empty((0, 3), dtype=float)
+    cumulative = np.concatenate(
+        ([0.0], np.cumsum(np.linalg.norm(np.diff(points, axis=0), axis=1)))
+    )
+    # Repeated points make np.interp's x coordinates ambiguous. Keeping the
+    # first point and the last point at each later distance preserves endpoints.
+    unique, first = np.unique(cumulative, return_index=True)
+    last = np.searchsorted(cumulative, unique, side="right") - 1
+    indexes = np.where(unique == 0, first, last)
+    return np.column_stack(
+        [np.interp(positions, unique, points[indexes, dim]) for dim in range(3)]
     )
 
 
@@ -100,32 +124,45 @@ def get_centerline(data, debug=False):
 
 
 def reorder_centerline(centerline):
+    if len(centerline) < 2:
+        return centerline
     return centerline[::-1] if centerline[0].point[2] > centerline[-1].point[2] else centerline
 
 
 def get_index_for_point(centerline, point):
+    if point is None:
+        return None
     for idx, vertex in enumerate(centerline):
         if np.array_equal(vertex.point, point):
             return idx
-    return False
+    return None
 
 
 def get_mid_of_points(centerline, a, b):
+    if not centerline or a is None or b is None:
+        return None
+    if not (0 <= a < len(centerline) and 0 <= b < len(centerline)):
+        return None
     if b < a:
         a, b = b, a
     target = get_len_path(centerline[a:b]) // 2
     length = 0.0
     for idx in range(max(1, a), b):
-        length += np.linalg.norm(centerline[idx].point - centerline[idx - 1].point)
+        length += np.linalg.norm(
+            centerline[idx].point - centerline[idx - 1].point
+        )
         if length >= target:
             return idx
+    return a if a == b else None
 
 
 def get_next_point_by_distance(centerline, start, distance, spacing):
+    if not centerline or start is None or not 0 <= start < len(centerline):
+        return None
     if distance == 0:
         return start
     length = 0.0
-    if distance >= 0:
+    if distance > 0:
         indexes = range(start + 1, len(centerline) - 1)
         previous_offset = -1
     else:
@@ -133,7 +170,9 @@ def get_next_point_by_distance(centerline, start, distance, spacing):
         previous_offset = 1
     for idx in indexes:
         length += get_distance(
-            centerline[idx].point, centerline[idx + previous_offset].point, spacing
+            centerline[idx].point,
+            centerline[idx + previous_offset].point,
+            spacing,
         )
         if length >= abs(distance):
             return idx
@@ -170,14 +209,18 @@ def extend_centerline(image, centerline, distance):
 
 
 def get_closest_point_of_centerline(point, centerline):
+    if point is None or not centerline:
+        return None
     points = np.asarray([vertex.point for vertex in centerline])
     return tuple(points[np.argmin(np.linalg.norm(points - point, axis=1))])
 
 
 def get_closest_centerline_section(point, centerline, length_mm, spacing):
-    closest = get_index_for_point(
-        centerline, get_closest_point_of_centerline(point, centerline)
-    )
+    if not centerline:
+        return []
+    closest = get_index_for_point(centerline, get_closest_point_of_centerline(point, centerline))
+    if closest is None:
+        return []
     count = int(length_mm / spacing)
     start = max(closest - count // 2, 0)
     end = min(closest + count // 2, len(centerline) - 1)
@@ -190,19 +233,37 @@ def get_closest_centerline_section(point, centerline, length_mm, spacing):
 
 
 def get_normal_for_cl_point(centerline, idx, dist=(3, 10)):
+    if len(centerline) < 2 or idx is None or not 0 <= idx < len(centerline):
+        return np.array([0.0, 0.0, 1.0])
     normals = []
     for distance in range(dist[0], dist[1]):
         start = max(0, idx - distance)
         end = min(len(centerline) - 1, idx + distance)
         normals.append(centerline[start].point - centerline[end].point)
-    return np.asarray(normals).mean(axis=0)
+    normal = np.asarray(normals).mean(axis=0)
+    if np.linalg.norm(normal) > 0:
+        return normal
+    for distance in range(1, len(centerline)):
+        start = max(0, idx - distance)
+        end = min(len(centerline) - 1, idx + distance)
+        normal = centerline[start].point - centerline[end].point
+        if np.linalg.norm(normal) > 0:
+            return normal
+    return np.array([0.0, 0.0, 1.0])
 
 
 def _distance_to_plane(point, normal, plane_point):
-    return ((np.asarray(point) @ normal) - (plane_point @ normal)) / np.linalg.norm(normal)
+    norm = np.linalg.norm(normal)
+    if norm == 0:
+        return np.inf
+    return ((np.asarray(point) @ normal) - (plane_point @ normal)) / norm
 
 
 def get_closest_point_of_centerline_by_plane(point, centerline):
+    if point is None or not centerline:
+        return None, None
+    if len(centerline) == 1:
+        return tuple(centerline[0].point), get_normal_for_cl_point(centerline, 0)
     distances = []
     normals = []
     for idx, vertex in enumerate(centerline[:-1]):
@@ -214,18 +275,17 @@ def get_closest_point_of_centerline_by_plane(point, centerline):
 
 
 def resample_cl_to_same_distance(centerline, vox_to_mm_affine, dist=20):
+    if dist <= 0:
+        raise ValueError("dist must be greater than zero")
     points = np.asarray([vertex.point for vertex in centerline], dtype=float)
     if len(points) < 2:
         return [Vertex(point) for point in points]
     points_mm = nib.affines.apply_affine(vox_to_mm_affine, points)
-    lengths = np.linalg.norm(np.diff(points_mm, axis=0), axis=1)
-    cumulative = np.concatenate(([0.0], np.cumsum(lengths)))
-    if cumulative[-1] == 0:
-        return [Vertex(points[0]), Vertex(points[0])]
-    positions = np.linspace(0, cumulative[-1], max(2, int(cumulative[-1] / dist)))
-    sampled_mm = np.column_stack(
-        [np.interp(positions, cumulative, points_mm[:, dim]) for dim in range(3)]
-    )
+    total_length = np.linalg.norm(np.diff(points_mm, axis=0), axis=1).sum()
+    if total_length == 0:
+        return [Vertex(points[0])]
+    positions = np.linspace(0, total_length, max(2, int(total_length / dist)))
+    sampled_mm = resample_points_by_arc_length(points_mm, positions)
     sampled = nib.affines.apply_affine(np.linalg.inv(vox_to_mm_affine), sampled_mm)
     return [Vertex(point) for point in sampled]
 
