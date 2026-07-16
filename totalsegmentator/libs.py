@@ -190,7 +190,10 @@ def download_pretrained_weights(task_id):
         "Dataset297_TotalSegmentator_total_3mm_1559subj_v204",  # for >= v2.0.5
         # "Dataset298_TotalSegmentator_total_6mm_1559subj",  # for >= v2.0.5
         "Dataset302_vertebrae_body_1559subj",
-        "body_stats_models_2026_02_11"
+        "body_stats_models_2026_02_11",
+        "lightning_models/mr_all_splitOrig_3d_resnet10_ep40_rtn1",
+        "lightning_models/ct_all_splitOrig_3d_resnet10_ep40_rtn1",
+        "lightning_models/ct_all_splitOrig_3d_resnet10_fl2_ep40_rtn1",
     ]
 
     # url = "http://backend.totalsegmentator.com"
@@ -437,11 +440,11 @@ def download_pretrained_weights(task_id):
 
     # CNN body stats: one multi-target model per modality
     elif task_id == "body_stats_cnn_mr":
-        weights_path = config_dir / "lightning_models" / "mr_all_splitOrig_3d_resnet10_ep40_rtn1"
-        WEIGHTS_URL = url + "/v2.5.0-weights/mr_all_splitOrig_3d_resnet10_ep40_rtn1.zip"
+        weights_path = config_dir / "lightning_models" / "mr_all_splitOrig_3d_resnet10_fl2_ep40_rtn1_can1"
+        WEIGHTS_URL = url + "/v2.5.0-weights/mr_all_splitOrig_3d_resnet10_fl2_ep40_rtn1_can1.zip"
     elif task_id == "body_stats_cnn_ct":
-        weights_path = config_dir / "lightning_models" / "ct_all_splitOrig_3d_resnet10_ep40_rtn1"
-        WEIGHTS_URL = url + "/v2.5.0-weights/ct_all_splitOrig_3d_resnet10_ep40_rtn1.zip"
+        weights_path = config_dir / "lightning_models" / "ct_all_splitOrig_3d_resnet10_fl2_ep40_rtn1_can1"
+        WEIGHTS_URL = url + "/v2.5.0-weights/ct_all_splitOrig_3d_resnet10_fl2_ep40_rtn1_can1.zip"
 
 
     else:

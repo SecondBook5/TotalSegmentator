@@ -13,8 +13,8 @@ from totalsegmentator.resampling import change_spacing
 
 DEFAULT_BODY_STATS_CNN_ROOT_DIR = get_weights_dir() / "lightning_models"
 DEFAULT_BODY_STATS_CNN_DIRS = {
-    "mr": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "mr_all_splitOrig_3d_resnet10_fl2_ep40_rtn1",
-    "ct": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_all_splitOrig_3d_resnet10_fl2_ep40_rtn1",
+    "mr": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "mr_all_splitOrig_3d_resnet10_fl2_ep40_rtn1_can1",
+    "ct": DEFAULT_BODY_STATS_CNN_ROOT_DIR / "ct_all_splitOrig_3d_resnet10_fl2_ep40_rtn1_can1",
 }
 BODY_STATS_CNN_DOWNLOAD_TASKS = {
     "mr": "body_stats_cnn_mr",
