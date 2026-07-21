@@ -22,6 +22,8 @@ TOTAL_ROIS = [
     "vertebrae_T12",
 ]
 
+# Using --higher_order_resampling not necessary because input image has
+# same resolution as model spacing. (T710: 1.5mm, T713: 0.8mm, T716: 0.8mm)
 MODEL_RUNS = [
     (
         "Running TotalSegmentator - aorta",

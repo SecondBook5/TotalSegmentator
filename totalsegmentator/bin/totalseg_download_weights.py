@@ -30,7 +30,7 @@ def main():
                                                  "thigh_shoulder_muscles", "thigh_shoulder_muscles_mr", 
                                                  "liver_segments", "liver_segments_mr", "liver_lesions", "liver_lesions_mr",
                                                  "body_stats", "body_stats_cnn_mr", "body_stats_cnn_ct",
-                                                 "aortic_sinuses", 
+                                                 "aortic_sinuses", "renal_arteries", "aorta_annulus", "aortic_dissection",
                                                  "all"],
                         help="Task for which to download the weights", default="total")
 
