@@ -241,6 +241,13 @@ roi_groups = {
     "aortic_sinuses": [
         ["left_ventricular_outflow_tract", "right_coronary_cusp", "left_coronary_cusp", "non_coronary_cusp"]
     ],
+    "aortic_dissection": [
+        ["aorta_true_lumen", "aorta_false_lumen"]
+    ],
+    "pulmonary_artery_landmarks": [
+        ["annulus", "sinotubular_junction"],
+        ["pul_annulus", "pul_sinotubular_junction", "pul_bifurcation", "pul_left_start", "pul_right_start"]
+    ],
     "liver_segments": [
         ["liver_segment_1", "liver_segment_2", "liver_segment_3", "liver_segment_4", "liver_segment_5", "liver_segment_6", "liver_segment_7", "liver_segment_8"]
     ],

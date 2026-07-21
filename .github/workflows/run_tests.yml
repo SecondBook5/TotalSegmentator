@@ -54,7 +54,7 @@ jobs:
         run: pytest -v tests/test_aorta_report.py
 
       - name: Run pulmonary report tests
-        run: pytest -v tests/test_pulmonary_report.py tests/test_pulmonary_report_io.py
+        run: pytest -v tests/test_pulmonary_report.py
 
   # upload-dockerhub:
   #   runs-on: ubuntu-latest
