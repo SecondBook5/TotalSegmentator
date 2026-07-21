@@ -92,7 +92,10 @@ def main():
         "body_stats": ["body_stats"],
         "body_stats_cnn_mr": ["body_stats_cnn_mr"],
         "body_stats_cnn_ct": ["body_stats_cnn_ct"],
-        "aortic_sinuses": [920]
+        "aortic_sinuses": [920],
+        "renal_arteries": [710],
+        "aorta_annulus": [713],
+        "aortic_dissection": [716],
     }
 
     setup_totalseg()
