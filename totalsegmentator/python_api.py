@@ -795,6 +795,15 @@ def totalsegmentator(input: Union[str, Path, Nifti1Image], output: Union[str, Pa
         folds = [0, 1, 2, 3, 4]
         if fast: raise ValueError("task aortic_dissection does not work with option --fast")
         show_license_info()
+    elif task == "pulmonary_artery_landmarks":
+        task_id = 514
+        resample = [0.7802734375, 0.7802734375, 1.0]
+        trainer = "nnUNetTrainer"
+        crop = None
+        model = "3d_fullres"
+        folds = [0, 1, 2, 3, 4]
+        if fast: raise ValueError("task pulmonary_artery_landmarks does not work with option --fast")
+        show_license_info()
 
     elif task == "test":
         task_id = [517]

@@ -683,6 +683,15 @@ class_map = {
         1: "aorta_true_lumen",
         2: "aorta_false_lumen"
     },
+    "pulmonary_artery_landmarks": {
+        1: "annulus",
+        2: "sinotubular_junction",
+        3: "pul_annulus",
+        4: "pul_sinotubular_junction",
+        5: "pul_bifurcation",
+        6: "pul_left_start",
+        7: "pul_right_start"
+    },
     "liver_segments": {
         1: "liver_segment_1",
         2: "liver_segment_2", 
@@ -860,7 +869,8 @@ commercial_models = {
     "aortic_sinuses": 920,
     "renal_arteries": 710,
     "aorta_annulus": 713,
-    "aortic_dissection": 716
+    "aortic_dissection": 716,
+    "pulmonary_artery_landmarks": 514
 }
 
 

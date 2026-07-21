@@ -121,9 +121,11 @@ def get_plane_diameters(mask, spacing=None):
     _, start, end = region
     _, start_pd, end_pd = max_perpendicular_line(mask, start, end)
     if spacing is None:
-        distance = lambda first, second: float(np.linalg.norm(first - second))
+        def distance(first, second):
+            return float(np.linalg.norm(first - second))
     else:
-        distance = lambda first, second: float(get_distance(first, second, spacing))
+        def distance(first, second):
+            return float(get_distance(first, second, spacing))
     diameter = distance(start, end)
     perpendicular = (
         distance(start_pd, end_pd) if start_pd is not None and end_pd is not None else 0.0

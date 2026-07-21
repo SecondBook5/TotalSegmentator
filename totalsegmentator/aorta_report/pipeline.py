@@ -224,7 +224,7 @@ def create_aorta_report(
     f_type="nii",
     host="local",
     erosion=False,
-    version="0.1.1",
+    version=VERSION,
     skip_dissection=False,
 ):
     """Generate an aorta report and yield source-compatible progress dictionaries."""

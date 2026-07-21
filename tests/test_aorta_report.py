@@ -146,6 +146,8 @@ def test_aorta_report_json(aorta_report_result):
 
     data_ref_filtered = remove_keys_with_prefix(data_ref, ["start", "end"])
     data_new_filtered = remove_keys_with_prefix(data_new, ["start", "end"])
+    data_ref_filtered["metadata"].pop("version", None)
+    data_new_filtered["metadata"].pop("version", None)
 
     assert dicts_almost_equal(data_ref_filtered, data_new_filtered)
 

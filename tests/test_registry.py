@@ -48,6 +48,10 @@ class TestRegistry(unittest.TestCase):
         self.assertEqual(get_task_classes("aorta_annulus")[1], "annulus_proper")
         self.assertTrue(requires_license("aortic_dissection"))
         self.assertEqual(get_task_classes("aortic_dissection")[2], "aorta_false_lumen")
+        self.assertTrue(requires_license("pulmonary_artery_landmarks"))
+        self.assertEqual(
+            get_task_classes("pulmonary_artery_landmarks")[7], "pul_right_start"
+        )
 
     def test_license_flag_matches_commercial_models(self):
         # Every licensed task is listed, and every commercial model is a selectable task.

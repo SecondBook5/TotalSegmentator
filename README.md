@@ -179,6 +179,16 @@ totalseg_aorta_report -i ct.nii.gz \
   -c aorta_cpr.png --run_models
 ```
 
+To measure the proximal main pulmonary artery, sinotubular junction,
+bifurcation, and the left and right pulmonary arteries, use the pulmonary
+artery report command. See the
+[pulmonary report documentation](resources/pulmonary_report.md):
+```bash
+totalseg_pulmonary_report -i ct.nii.gz \
+  -o pulmonary_report.nii.gz -j pulmonary_report.json \
+  -l pulmonary_report.log --run_models
+```
+
 Normally weights are automatically downloaded when running TotalSegmentator. If you want to download the weights with an extra command (e.g. when building a docker container) use this:
 ```bash
 totalseg_download_weights -t <task_name>

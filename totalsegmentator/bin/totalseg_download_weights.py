@@ -31,6 +31,7 @@ def main():
                                                  "liver_segments", "liver_segments_mr", "liver_lesions", "liver_lesions_mr",
                                                  "body_stats", "body_stats_cnn_mr", "body_stats_cnn_ct",
                                                  "aortic_sinuses", "renal_arteries", "aorta_annulus", "aortic_dissection",
+                                                 "pulmonary_artery_landmarks",
                                                  "all"],
                         help="Task for which to download the weights", default="total")
 
@@ -96,6 +97,7 @@ def main():
         "renal_arteries": [710],
         "aorta_annulus": [713],
         "aortic_dissection": [716],
+        "pulmonary_artery_landmarks": [514],
     }
 
     setup_totalseg()

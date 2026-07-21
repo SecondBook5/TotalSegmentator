@@ -35,7 +35,13 @@ setup(name='TotalSegmentator',
              "resources/aorta_report/report_template_frontpage.html",
              "resources/aorta_report/report_template_layout.html",
              "resources/aorta_report/styles.css",
-             "resources/aorta_report/usb_logo_white.svg"]
+             "resources/aorta_report/usb_logo_white.svg",
+             "resources/pulmonary_report/empty_bg.png",
+             "resources/pulmonary_report/logo_black.png",
+             "resources/pulmonary_report/logo_black.svg",
+             "resources/pulmonary_report/report_template_frontpage.html",
+             "resources/pulmonary_report/styles.css",
+             "resources/pulmonary_report/usb_logo_white.svg"]
             },
         install_requires=[
             'torch>=2.1.2',  # torch < 2.6.0 required if using nnunetv2 < 2.6.0
@@ -84,6 +90,7 @@ setup(name='TotalSegmentator',
                 'totalseg_evans_index=totalsegmentator.bin.totalseg_evans_index:main',
                 'totalseg_spine_report=totalsegmentator.bin.totalseg_spine_report:main',
                 'totalseg_aorta_report=totalsegmentator.bin.totalseg_aorta_report:main',
+                'totalseg_pulmonary_report=totalsegmentator.bin.totalseg_pulmonary_report:main',
                 'totalseg_get_body_stats=totalsegmentator.bin.totalseg_get_body_stats:main',
                 'totalseg_info=totalsegmentator.bin.totalseg_info:main'
             ],

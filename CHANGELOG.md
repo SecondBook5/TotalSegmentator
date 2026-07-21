@@ -1,5 +1,6 @@
 ## Master
 
+* add `totalseg_pulmonary_report` command to generate pulmonary artery landmark measurements, JSON results and an RGB NIfTI report.
 * add `totalseg_aorta_report` command to generate an aorta report with landmark diameters, section lengths/volumes, optional CPR visualization, JSON results and an RGB NIfTI report.
 * change the default input image resampling order from 3 to 1 for faster resampling with very similar segmentation accuracy.
 
