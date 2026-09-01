@@ -251,9 +251,6 @@ def totalsegmentator(input: Union[str, Path, Nifti1Image], output: Union[str, Pa
         except ImportError:
             raise ImportError("highdicom is required for output_type='dicom_seg'. Please install it with 'pip install highdicom'.")
 
-    if save_lowres and not (fast or fastest):
-        raise ValueError("save_lowres only works together with fast or fastest mode.")
-
     output_types = [output_type] if isinstance(output_type, str) else list(output_type)
     if save_lowres and any(out_type in ["dicom_rtstruct", "dicom_seg"] for out_type in output_types):
         raise ValueError("save_lowres only supports nifti output.")
@@ -307,13 +304,6 @@ def totalsegmentator(input: Union[str, Path, Nifti1Image], output: Union[str, Pa
     else:
         img_type = "dicom"
 
-    # fast statistics are calculated on the downsampled image
-    if statistics and fast:
-        statistics_fast = statistics  # preserve path if provided
-        statistics = False
-    else:
-        statistics_fast = False
-
     if type(task_id) is list:
         for tid in task_id:
             download_pretrained_weights(tid)
@@ -344,12 +334,32 @@ def totalsegmentator(input: Union[str, Path, Nifti1Image], output: Union[str, Pa
             body_seg = False
             print("INFO: For MR models the argument '--body_seg' is not supported and will be ignored.")
 
+    if higher_order_resampling and save_lowres:
+        raise ValueError("save_lowres cannot be used together with --higher_order_resampling "
+                         "(higher-order resampling upsamples to the input resolution).")
+
     if higher_order_resampling:
         resample = None
         save_lowres = False
 
+    if save_lowres and resample is None:
+        raise ValueError("save_lowres requires a task that resamples to a model resolution. "
+                         "This task has no resampling step.")
+
     if save_lowres and (crop is not None or roi_subset is not None or cascade or body_seg):
         raise ValueError("save_lowres is not supported together with cropping, roi_subset, body_seg, or cascade.")
+
+    if save_lowres and radiomics:
+        raise ValueError("save_lowres is not supported together with radiomics "
+                         "(input and segmentation would have different resolutions).")
+
+    # Statistics on the model-resolution image (avoids a shape mismatch when
+    # save_lowres skips the upsample back to the input grid).
+    if statistics and (fast or save_lowres):
+        statistics_fast = statistics  # preserve path if provided
+        statistics = False
+    else:
+        statistics_fast = False
 
     # Generate rough organ segmentation (6mm) for speed up if crop or roi_subset is used
     # (for "fast" on GPU it makes no big difference, but on CPU it can help even for "fast")
@@ -464,7 +474,7 @@ def totalsegmentator(input: Union[str, Path, Nifti1Image], output: Union[str, Pa
                             higher_order_resampling_LEGACY=higher_order_resampling_LEGACY,
                             save_probabilities=save_probabilities,
                             cascade=cascade, remove_outside_mask=remove_mask, remove_outside_dilation=remove_outside_dilation,
-                            debug=debug, save_lowres=save_lowres and (fast or fastest),
+                            debug=debug, save_lowres=save_lowres,
                             resampling_order=resampling_order, plans=plans,
                             vertebrae_body_mask=vertebrae_body_mask, output_task_name=task,
                             use_cropped_logits_resampling=higher_order_resampling)
@@ -525,7 +535,7 @@ def totalsegmentator(input: Union[str, Path, Nifti1Image], output: Union[str, Pa
     if report is not None:
         report_data = build_run_report(input, output, task, device, fast, fastest, ml,
                                        output_type, roi_subset, time.time() - run_start,
-                                       save_lowres=save_lowres and (fast or fastest))
+                                       save_lowres=save_lowres)
         report_path = Path(report).absolute()
         report_path.parent.mkdir(parents=True, exist_ok=True)
         with open(report_path, "w") as f:

@@ -48,7 +48,9 @@ TotalSegmentator -i <input> -o <output> -ta <task> [options]
   slices. `-o` is a directory of per-class masks, or a single file when `--ml` (multilabel),
   `dicom_seg` or `dicom_rtstruct` output is used.
 - `-d cpu|gpu|gpu:N|mps` selects the device. Without a GPU the run falls back to CPU (slow);
-  `--fast` (3mm) or `--roi_subset <classes>` reduce runtime and memory.
+ `--fast` (3mm) or `--roi_subset <classes>` reduce runtime and memory.
+- `--save_lowres` writes the segmentation at the model spacing (1.5mm by default, 3mm with `--fast`,
+ 6mm with `--fastest`) instead of resampling back to the input resolution.
 - Some tasks require a license (see `license_required` in the registry). Set it once with
   `totalseg_set_license -l <key>`; free non-commercial licenses:
   https://backend.totalsegmentator.com/license-academic/

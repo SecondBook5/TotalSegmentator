@@ -793,6 +793,9 @@ def nnUNet_predict_image(file_in: Union[str, Path, Nifti1Image], file_out, task_
                                         order=0, dtype=np.uint8, nr_cpus=nr_threads_resampling,
                                         force_affine=img_in.affine, use_gpu=use_gpu)
             if not quiet: print(f"  Resampled in {time.time() - st_resampling:.2f}s")
+        elif save_lowres and not quiet:
+            zooms = tuple(round(float(z), 2) for z in img_pred.header.get_zooms()[:3])
+            print(f"Saving at model resolution {zooms} mm without upsampling to input resolution.")
 
         if verbose: print("Undoing canonical...")
         img_pred = undo_canonical(img_pred, img_in_orig)

@@ -100,8 +100,8 @@ def main():
                         default=False)
 
     parser.add_argument("-sl", "--save_lowres", action="store_true",
-                        help="When using --fast or --fastest, save the segmentation in the model resolution "
-                             "(3mm or 6mm) instead of upsampling to the input resolution.",
+                        help="Save the segmentation at the model resolution (e.g. 1.5mm, or 3mm/6mm with "
+                             "--fast/--fastest) instead of upsampling it back to the input resolution.",
                         default=False)
 
     parser.add_argument("-t", "--nora_tag", type=str,

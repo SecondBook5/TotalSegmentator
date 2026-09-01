@@ -1,5 +1,6 @@
 ## Master
 * make work with fury > v2. This does not used VTK anymore.
+* `--save_lowres` now also works with the default (1.5mm) models, not only `--fast`/`--fastest`.
 
 
 ## Release 2.18.0 (12.08.2026)
