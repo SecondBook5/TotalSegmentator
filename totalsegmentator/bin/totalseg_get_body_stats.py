@@ -308,6 +308,9 @@ def get_body_stats(img, modality: str, f_type: str = "niigz", model_file: Path =
             and ensemble predictions via mean
         debug: bool, optional - if True, print additional debugging information
     """
+    if not quiet:
+        print("\nIf you use this tool please cite: https://arxiv.org/abs/2608.29348\n")
+
     setup_totalseg()
     if license_number is not None:
         set_license_number(license_number)
@@ -569,7 +572,7 @@ def main():
     is large (e.g. entire abdomen and thorax).
     """
     parser = argparse.ArgumentParser(description="Get body stats.",
-                                     epilog="Written by Jakob Wasserthal. If you use this tool please cite https://pubs.rsna.org/doi/10.1148/ryai.230024")
+                                     epilog="Written by Jakob Wasserthal. If you use this tool please cite https://arxiv.org/abs/2608.29348")
 
     parser.add_argument("-i", metavar="filepath", dest="input_file",
                         help="path to CT/MR file (.nii.gz, .nii, or .zip for DICOM)",

@@ -1,5 +1,9 @@
 # Body statistics and acquisition-property prediction
 
+## Paper
+
+For all details see this [paper](https://arxiv.org/abs/2608.29348). Please cite it if you use the model.
+
 
 ## CNN Model
 
