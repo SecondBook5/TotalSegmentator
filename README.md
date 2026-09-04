@@ -146,7 +146,7 @@ Thank you to [INGEDATA](https://www.ingedata.ai/) for providing a team of radiol
 
 If you want to know body weight, size, age, sex, BMI, BSA, image noise, contrast, FOV and more information about the image you can use the following command (requires `pip install timm monai`). It runs on CPU in <1min. It requires a license which you can get for free for non-commercial usage [here](https://backend.totalsegmentator.com/license-academic/). More details can be found [here](resources/body_stats_prediction.md) or in the [paper](https://arxiv.org/abs/2608.29348):
 ```bash
-totalseg_get_body_stats -i ct.nii.gz -o body_stats.json -m ct
+totalseg_get_body_stats -i ct.nii.gz -o body_stats.json -m [ct/mr]
 ```
 
 If you want to know which contrast phase a CT image is you can use the following command (requires `pip install xgboost`). More details can be found [here](resources/contrast_phase_prediction.md):
